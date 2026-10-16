@@ -20,8 +20,8 @@ class VerifyCsrfToken extends Middleware
 
     /**
      * Token lama (session dibuat ulang / file session hilang) tidak boleh berujung 419.
-     * Untuk user yang sudah login (termasuk hasil restore cookie persistent), request
-     * dari origin yang sama tetap diterima; cross-site tetap ditolak.
+     * User yang sudah login (termasuk hasil restore cookie persistent) tetap diterima.
+     * Cross-site tetap ditolak praktis oleh SameSite=Lax pada cookie session/auth.
      */
     protected function tokensMatch($request)
     {
@@ -29,30 +29,6 @@ class VerifyCsrfToken extends Middleware
             return true;
         }
 
-        return Auth::check() && $this->isSameOrigin($request);
-    }
-
-    private function isSameOrigin($request): bool
-    {
-        $source = $request->headers->get('Origin');
-        if (!$source || $source === 'null') {
-            $source = $request->headers->get('Referer');
-        }
-        if (!$source) {
-            return false;
-        }
-
-        $sourceHost = parse_url($source, PHP_URL_HOST);
-        if (!$sourceHost) {
-            return false;
-        }
-
-        $sourcePort = parse_url($source, PHP_URL_PORT);
-        $sourceAuthority = strtolower($sourceHost . ($sourcePort ? ':' . $sourcePort : ''));
-
-        return in_array($sourceAuthority, [
-            strtolower($request->getHost()),
-            strtolower($request->getHttpHost()),
-        ], true);
+        return Auth::check();
     }
 }

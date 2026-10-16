@@ -7,10 +7,15 @@ use Illuminate\Support\Facades\Cookie;
 
 class PersistentLogin
 {
-    public const COOKIE = 'al-istiqomah-sikeu';
+    public const COOKIE = 'pekanbaru_baitul_quran';
 
-    /** Legacy cookie names from previous client branding (still readable, migrated on next request). */
-    public const LEGACY_COOKIES = ['aisyiyah_jatinom', 'arruhama_stay'];
+    /** Legacy cookie names from previous branding / template clones (readable, migrated on next request). */
+    public const LEGACY_COOKIES = [
+        'baitul-quran-sikeu',
+        'al-istiqomah-sikeu',
+        'aisyiyah_jatinom',
+        'arruhama_stay',
+    ];
 
     public static function queue(CyberKey $user): void
     {
@@ -88,5 +93,35 @@ class PersistentLogin
         }
 
         return CyberKey::query()->where('urut', $urut)->first();
+    }
+
+    /**
+     * Restore Auth + session key from cookie without migrate()/login() races.
+     * Returns true if a user was restored or already authenticated.
+     */
+    public static function restoreIntoRequest($request): bool
+    {
+        if (\Illuminate\Support\Facades\Auth::check()) {
+            $current = \Illuminate\Support\Facades\Auth::user();
+            if ($current instanceof CyberKey && !$request->cookie(self::COOKIE)) {
+                self::queue($current);
+            }
+
+            return true;
+        }
+
+        $user = self::userFromCookie(self::rawFromRequest());
+        if (!$user) {
+            return false;
+        }
+
+        $guard = \Illuminate\Support\Facades\Auth::guard();
+        $guard->setUser($user);
+        if ($request->hasSession()) {
+            $request->session()->put($guard->getName(), $user->getAuthIdentifier());
+        }
+        self::queue($user);
+
+        return true;
     }
 }

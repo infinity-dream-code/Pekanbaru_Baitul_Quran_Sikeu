@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\PersistentLogin;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -14,6 +15,8 @@ class CheckSession
      */
     public function handle(Request $request, Closure $next)
     {
+        PersistentLogin::restoreIntoRequest($request);
+
         if (Auth::check()) {
             return $next($request);
         }

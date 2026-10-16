@@ -16,16 +16,16 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Al Istiqomah Kuningan'),
-    'nama_instansi' => env('APP_NAMA_INSTANSI', 'Al Istiqomah Kuningan'),
-    'alamat' => env('APP_ALAMAT', 'Kab. Kuningan, Prov. Jawa Barat'),
-    'logo' => env('APP_LOGO', 'istiqomah.png'),
+    'name' => env('APP_NAME', 'Ponpes Baitul Qur\'an'),
+    'nama_instansi' => env('APP_NAMA_INSTANSI', 'Ponpes Baitul Qur\'an'),
+    'alamat' => env('APP_ALAMAT', 'Kota Pekanbaru, Prov. Riau'),
+    'logo' => env('APP_LOGO', 'logo_baitul_quran.jpeg'),
     'email' => env('APP_EMAIL', 'ypisabkho@gmail.com'),
     'telepon' => env('APP_TELEPON', 'SIKEU'),
-    'domisili' => env('APP_DOMISILI', 'Kuningan'),
-    'nova' => env('APP_NOVA') ?: env('APP_VA_OPEN', '797777'),
-    'va_open' => env('APP_VA_OPEN', '797777'),
-    'va_close' => env('APP_VA_CLOSE', '797777'),
+    'domisili' => env('APP_DOMISILI', 'Pekanbaru'),
+    'nova' => env('APP_NOVA') ?: env('APP_VA_OPEN', '777724'),
+    'va_open' => env('APP_VA_OPEN', '777724'),
+    'va_close' => env('APP_VA_CLOSE', '777724'),
     // Client ini hanya 1 VA (Open). Set true jika nanti ada VA Close.
     'va_close_enabled' => filter_var(env('APP_VA_CLOSE_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
     'biaya_admin' => env('BIAYA_ADMIN', 0),

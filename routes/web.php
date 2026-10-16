@@ -15,6 +15,8 @@ Route::get("/home", function () {
 Route::get("/reload-captcha", [AuthController::class, "reloadCaptcha"])->name("reload-captcha");
 Route::get("/reload-math-captcha", [\App\Http\Controllers\Auth\LoginController::class, "reloadMathCaptcha"])->name("reload-math-captcha");
 Route::match(["get", "post"], "/keep-alive", function (\Illuminate\Http\Request $request) {
+    \App\Support\PersistentLogin::restoreIntoRequest($request);
+
     return response()->json([
         "status" => "ok",
         "authenticated" => \Illuminate\Support\Facades\Auth::check(),

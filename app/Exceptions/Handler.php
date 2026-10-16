@@ -2,6 +2,8 @@
 
 namespace App\Exceptions;
 
+use App\Support\PersistentLogin;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Illuminate\Session\TokenMismatchException;
 use Throwable;
@@ -26,6 +28,30 @@ class Handler extends ExceptionHandler
     {
         $this->reportable(function (Throwable $e) {
             //
+        });
+
+        $this->renderable(function (AuthenticationException $e, $request) {
+            // Session hilang tapi cookie persistent masih valid → jangan ke login.
+            // Recreate dengan redirect ke halaman yang sama / sebelumnya.
+            if (PersistentLogin::restoreIntoRequest($request) && \Illuminate\Support\Facades\Auth::check()) {
+                if ($request->expectsJson() || $request->ajax() || $request->wantsJson()) {
+                    return response()->json([
+                        'message' => 'Silakan coba lagi.',
+                        'csrf_token' => $this->safeCsrfToken(),
+                        'authenticated' => true,
+                    ], 401);
+                }
+
+                if ($request->isMethod('GET')) {
+                    return redirect()->to($request->fullUrl());
+                }
+
+                return redirect()
+                    ->to(url()->previous() ?: url('/admin'))
+                    ->withInput($request->except('_token', 'password', 'password_confirmation'));
+            }
+
+            return null;
         });
 
         $this->renderable(function (Throwable $e, $request) {
