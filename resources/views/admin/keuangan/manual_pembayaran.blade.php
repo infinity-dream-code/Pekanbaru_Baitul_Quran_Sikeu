@@ -653,39 +653,29 @@
             }
 
             function getSaldoSiswa(target, siswa) {
-                loadingAlert();
+                const formatSaldo = (raw) => {
+                    let saldo = parseInt(String(raw ?? 0).replace(/\./g, ''), 10) || 0;
+                    return saldo.toLocaleString('id-ID');
+                };
+                const fillSaldo = (data) => {
+                    const payload = typeof data === 'object' && data !== null ? data : {};
+                    $('#saldo_open').val(formatSaldo(payload.saldo_open ?? payload.saldo_93 ?? 0));
+                    if ($('#saldo_close').length) {
+                        $('#saldo_close').val(formatSaldo(payload.saldo_close ?? payload.saldo_94 ?? 0));
+                    }
+                    $('#saldo').val(formatSaldo(payload.saldo ?? payload.saldo_open ?? 0));
+                };
+
                 $.ajax({
                     url: '{{route('admin.keuangan.saldo.saldo-virtual-account.get-saldo')}}',
                     type: 'get',
-                    datatype: 'json',
+                    dataType: 'json',
                     data: { 'siswa': siswa },
                     headers: { 'X-CSRF-TOKEN': csrfToken },
                 }).done(function (response) {
-                    const data = typeof response === 'object' && response !== null ? response : {};
-                    const formatSaldo = (raw) => {
-                        let saldo = parseInt(String(raw ?? 0).replace(/\./g, ''), 10) || 0;
-                        return saldo.toLocaleString('id-ID');
-                    };
-                    $('#saldo_open').val(formatSaldo(data.saldo_open ?? data.saldo_93 ?? 0));
-                    if ($('#saldo_close').length) {
-                        $('#saldo_close').val(formatSaldo(data.saldo_close ?? data.saldo_94 ?? 0));
-                    }
-                    $('#saldo').val(formatSaldo(data.saldo ?? data.saldo_open ?? 0));
-                    Swal.close();
-                }).fail(function (xhr) {
-                    if (xhr.status === 422) {
-                        errorAlert('Data tidak ditemukan');
-                    } else if (xhr.status === 419) {
-                        // 419 dipulihkan diam-diam oleh handler global (refresh token + retry)
-                    } else if (xhr.status === 500) {
-                        errorAlert('Tidak dapat terhubung ke server, Silahkan periksa koneksi internet anda');
-                    } else if (xhr.status === 403) {
-                        errorAlert('Anda tidak memiliki izin untuk mengakses halaman ini');
-                    } else if (xhr.status === 404) {
-                        errorAlert('Halaman tidak ditemukan');
-                    } else {
-                        errorAlert('Terjadi kesalahan, silahkan coba memuat ulang halaman');
-                    }
+                    fillSaldo(response);
+                }).fail(function () {
+                    fillSaldo({ saldo: 0, saldo_open: 0 });
                 });
             }
 
