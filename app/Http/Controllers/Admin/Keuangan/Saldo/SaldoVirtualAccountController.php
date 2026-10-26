@@ -480,15 +480,15 @@ class SaldoVirtualAccountController extends Controller
 
         $columnName = match ($columnName) {
             'saldo', 'SALDO' => 'SALDO',
-            'NOCUST' => 'NOCUST',
-            'NMCUST' => 'NMCUST',
-            'CODE02' => 'CODE02',
-            'DESC02' => 'DESC02',
-            'DESC03' => 'DESC03',
-            'NUM2ND' => 'NUM2ND',
-            'DESC04' => 'DESC04',
-            'CUSTID' => 'CUSTID',
-            default => 'NOCUST',
+            'NOCUST' => 'scctcust.NOCUST',
+            'NMCUST' => 'scctcust.NMCUST',
+            'CODE02' => 'scctcust.CODE02',
+            'DESC02' => 'scctcust.DESC02',
+            'DESC03' => 'scctcust.DESC03',
+            'NUM2ND' => 'scctcust.NUM2ND',
+            'DESC04' => 'scctcust.DESC04',
+            'CUSTID' => 'scctcust.CUSTID',
+            default => 'scctcust.NOCUST',
         };
 
         $query = $this->saldoQuery();
@@ -501,38 +501,38 @@ class SaldoVirtualAccountController extends Controller
                 }
                 if ($key == 'siswa') {
                     if (is_numeric($val)) {
-                        $query->where('NOCUST', 'like', $val);
+                        $query->where('scctcust.NOCUST', 'like', $val);
                     } else {
-                        $query->where('NMCUST', 'like', '%' . $val . '%');
+                        $query->where('scctcust.NMCUST', 'like', '%' . $val . '%');
                     }
                 } elseif ($key == 'kelas') {
-                    $query->where('CODE03', '=', $val);
+                    $query->where('scctcust.CODE03', '=', $val);
                 } elseif ($key === 'sekolah') {
-                    $query->where('CODE01', '=', trim((string) $val));
+                    $query->where('scctcust.CODE01', '=', trim((string) $val));
                 } elseif ($key == 'saldo_positif' && (string) $val === '1') {
-                    $query->where('SALDO', '>', 0);
+                    $query->whereRaw('COALESCE(SALDO, 0) > 0');
                 } elseif ($key == 'angkatan') {
-                    $query->where('DESC04', '=', $val);
+                    $query->where('scctcust.DESC04', '=', $val);
                 }
             }
         }
 
         $scopedCodes = $this->resolveScopedSchoolCodes();
         if (!empty($scopedCodes)) {
-            $query->whereIn('CODE01', $scopedCodes);
+            $query->whereIn('scctcust.CODE01', $scopedCodes);
         }
 
         if (!blank($searchValue)) {
             $sanitizeSearch = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $searchValue);
             $query->where(function ($q) use ($sanitizeSearch) {
-                $q->where('NMCUST', 'like', '%' . $sanitizeSearch . '%')
-                    ->orWhere('NOCUST', 'like', '%' . $sanitizeSearch . '%')
-                    ->orWhere('NUM2ND', 'like', '%' . $sanitizeSearch . '%');
+                $q->where('scctcust.NMCUST', 'like', '%' . $sanitizeSearch . '%')
+                    ->orWhere('scctcust.NOCUST', 'like', '%' . $sanitizeSearch . '%')
+                    ->orWhere('scctcust.NUM2ND', 'like', '%' . $sanitizeSearch . '%');
             });
         }
 
         $totalQuery = $this->saldoQuery()
-            ->when(!empty($scopedCodes), fn ($q) => $q->whereIn('CODE01', $scopedCodes));
+            ->when(!empty($scopedCodes), fn ($q) => $q->whereIn('scctcust.CODE01', $scopedCodes));
         $totalRecords = (int) $totalQuery->count();
         $totalRecordswithFilter = (int) (clone $query)->count();
 
@@ -691,21 +691,34 @@ class SaldoVirtualAccountController extends Controller
 
     public function getSaldo(Request $request)
     {
-        $custId = $request->input('siswa');
-        $open = MultiVa::custSaldo($custId, MultiVa::OPEN);
-        $payload = [
-            'saldo' => $open,
-            'saldo_open' => $open,
-            'saldo_93' => $open,
-        ];
+        try {
+            $custId = $request->input('siswa');
+            $open = MultiVa::custSaldo($custId, MultiVa::OPEN);
+            $payload = [
+                'saldo' => $open,
+                'saldo_open' => $open,
+                'saldo_93' => $open,
+            ];
 
-        if (MultiVa::closeEnabled()) {
-            $close = MultiVa::custSaldo($custId, MultiVa::CLOSE);
-            $payload['saldo_close'] = $close;
-            $payload['saldo_94'] = $close;
+            if (MultiVa::closeEnabled()) {
+                $close = MultiVa::custSaldo($custId, MultiVa::CLOSE);
+                $payload['saldo_close'] = $close;
+                $payload['saldo_94'] = $close;
+            }
+
+            return response()->json($payload);
+        } catch (\Throwable $e) {
+            Log::error('saldo-va.getSaldo.failed', [
+                'siswa' => $request->input('siswa'),
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'saldo' => 0,
+                'saldo_open' => 0,
+                'saldo_93' => 0,
+            ]);
         }
-
-        return response()->json($payload);
     }
 
     public function transaksiIndex()

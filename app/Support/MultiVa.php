@@ -587,11 +587,28 @@ class MultiVa
             return 0;
         }
 
-        $row = self::saldoQuery($reffBank)
-            ->where('CUSTID', $custId)
-            ->first();
+        try {
+            $row = self::saldoQuery($reffBank)
+                ->where('scctcust.CUSTID', $custId)
+                ->first();
 
-        return (int) ($row->SALDO ?? 0);
+            return (int) ($row->SALDO ?? 0);
+        } catch (\Throwable $e) {
+            try {
+                return (int) DB::connection('DATA_MYSQL')
+                    ->table('sccttran')
+                    ->where('CUSTID', $custId)
+                    ->where(function ($q) {
+                        $q->whereNull('FIDBANK')
+                            ->orWhereRaw("TRIM(COALESCE(CAST(FIDBANK AS CHAR), '')) = ''")
+                            ->orWhereRaw("TRIM(COALESCE(CAST(FIDBANK AS CHAR), '')) != ?", ['1140000']);
+                    })
+                    ->selectRaw('COALESCE(SUM(KREDIT), 0) - COALESCE(SUM(DEBET), 0) AS saldo')
+                    ->value('saldo');
+            } catch (\Throwable) {
+                return 0;
+            }
+        }
     }
 
     public static function masters(): \Illuminate\Support\Collection
