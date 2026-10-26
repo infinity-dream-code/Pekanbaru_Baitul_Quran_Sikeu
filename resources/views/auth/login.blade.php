@@ -41,18 +41,57 @@
         .multiple-bg {
             background: radial-gradient(circle,rgba(60, 199, 254, 1) 0%, rgba(158, 228, 255, 0.7) 30%, rgba(190, 238, 255, 0.55) 60%, rgba(209, 243, 255, 0.3) 90%);
         }
+
+        .authentication-wrapper.authentication-basic .authentication-inner {
+            max-width: 520px;
+        }
+
+        .login-brand {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: 0 0.75rem;
+        }
+
+        .login-brand-logo {
+            display: block;
+            width: min(100%, 420px);
+            height: auto;
+            max-height: 150px;
+            object-fit: contain;
+            object-position: center;
+        }
+
+        .login-brand-name {
+            margin-top: 0.75rem;
+            font-size: 1.05rem;
+            font-weight: 700;
+            line-height: 1.3;
+            color: #2f3349;
+        }
+
+        .login-brand-address {
+            font-size: 0.8125rem;
+            color: #8592a3;
+            line-height: 1.35;
+        }
     </style>
     <div class="position-relative multiple-bg">
         <div class="authentication-wrapper authentication-basic container-p-y p-4">
             <div class="authentication-inner py-4">
                 <!-- Login -->
                 <div class="card p-2">
-                    <div class="app-brand justify-content-center mt-5">
-                        <a href="{{route('index')}}" class="app-brand-link gap-2">
-                            <span class="app-brand-logo demo">
-                                <span style="color: #666cff">
-                                        <img width="100" height="100" src="{{asset(config('app.logo'))}}" alt="logo">
-                                </span>
+                    <div class="app-brand justify-content-center mt-4 mb-1">
+                        <a href="{{route('index')}}" class="app-brand-link text-decoration-none">
+                            <span class="login-brand">
+                                <img
+                                    class="login-brand-logo"
+                                    src="{{asset(config('app.logo'))}}"
+                                    alt="{{ config('app.nama_instansi') }}"
+                                >
+                                <span class="login-brand-name">{{ config('app.nama_instansi') }}</span>
+                                <span class="login-brand-address">{{ config('app.alamat') }}</span>
                             </span>
                         </a>
                     </div>

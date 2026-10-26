@@ -98,7 +98,6 @@ class DataSiswaController extends Controller
             ["data" => "CODE04", "name" => "Gender", "searchable" => true, "orderable" => true, "exportable" => true],
             ["data" => "DESC05", "name" => "Alamat", "searchable" => true, "orderable" => true, "exportable" => true],
             ["data" => "GENUS", "name" => "Orang Tua", "searchable" => true, "orderable" => true, "exportable" => true],
-            ["data" => "NO_WA", "name" => "No WA", "searchable" => true, "orderable" => true, "exportable" => true],
             ["data" => "STCUST", "name" => "Status (1/0)", "searchable" => true, "orderable" => true, "exportable" => true],
             [
                 "data" => "edit_siswa",
@@ -143,7 +142,7 @@ class DataSiswaController extends Controller
 
         $sortable = [
             "nocust", "NUM2ND", "nmcust", "CODE02", "DESC02", "DESC03",
-            "DESC04", "CODE04", "DESC05", "GENUS", "NO_WA", "STCUST",
+            "DESC04", "CODE04", "DESC05", "GENUS", "STCUST",
         ];
 
         $orderArr = $request->get("order");
@@ -521,7 +520,6 @@ class DataSiswaController extends Controller
                 "ayah" => ["nullable", "string", "max:255"],
                 "alamat" => ["nullable", "string", "max:255"],
                 "gender" => ["nullable", "string", "max:50"],
-                "no_wa" => ["nullable", "string", "max:50"],
                 "stcust" => ["nullable", "in:0,1"],
             ],
             ValidationMessage::messages(),
@@ -549,7 +547,6 @@ class DataSiswaController extends Controller
                 "GENUS" => $request->input("ayah") ?: null,
                 "CODE04" => $request->input("gender") ?: null,
                 "DESC05" => $request->input("alamat") ?: null,
-                "NO_WA" => $request->input("no_wa") ?: null,
                 "STCUST" => $request->filled("stcust")
                     ? (int) $request->input("stcust")
                     : (int) ($siswa->STCUST ?? 0),

@@ -231,11 +231,6 @@
                                 <input type="text" class="form-control form-control-sm"
                                        id="edit_siswa-genus" name="ayah">
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label">No WA</label>
-                                <input type="text" class="form-control form-control-sm"
-                                       id="edit_siswa-nowa" name="no_wa">
-                            </div>
                             <div class="col-md-9">
                                 <label class="form-label">Alamat</label>
                                 <textarea class="form-control form-control-sm" id="edit_siswa-alamat" name="alamat" rows="2"></textarea>
@@ -488,7 +483,6 @@
                 CODE04: 24,
                 DESC05: 55,
                 GENUS: 55,
-                NO_WA: 48,
                 STCUST: 24,
             },
             printCustomize: function (win) {
@@ -646,7 +640,6 @@
                 setValue('#form-edit-siswa [name="no_pendaftaran"]', pickValue(rowData.no_pendaftaran, rowData.NUM2ND, rowData.num2nd));
                 setValue('#form-edit-siswa [name="nama"]', pickValue(rowData.nama, rowData.nmcust, rowData.NMCUST));
                 setValue('#form-edit-siswa [name="ayah"]', pickValue(rowData.ayah, rowData.genus, rowData.GENUS));
-                setValue('#form-edit-siswa [name="no_wa"]', pickValue(rowData.no_wa, rowData.NO_WA));
                 setValue('#form-edit-siswa [name="stcust"]', pickValue(rowData.stcust, rowData.STCUST, 0));
                 setValue('#form-edit-siswa [name="unit"]', pickValue(rowData.code02, rowData.CODE02));
                 setValue('#form-edit-siswa [name="kelas"]', pickValue(rowData.desc02, rowData.DESC02));

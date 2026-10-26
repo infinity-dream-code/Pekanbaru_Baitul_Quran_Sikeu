@@ -41,8 +41,132 @@ class ExportImportDataController extends Controller
             ->when($schoolCode, fn ($q) => $q->where('CODE01', $schoolCode))
             ->orderBy('DESC01')
             ->get();
+        $data['kelas'] = mst_kelas::getMstKelasAttributes($schoolCode);
+        $data['thn_aka'] = mst_thn_aka::orderBy('thn_aka', 'desc')->get();
 
         return view('admin.master_data.export_import_data.index', $data);
+    }
+
+    public function checkNis(Request $request)
+    {
+        $nis = trim((string) $request->query('nis', ''));
+        if ($nis === '' || !ctype_digit($nis)) {
+            return response()->json([
+                'exists' => false,
+                'message' => '',
+            ]);
+        }
+
+        $siswa = scctcust::query()
+            ->select(['NOCUST', 'NMCUST'])
+            ->where('NOCUST', $nis)
+            ->first();
+
+        if (!$siswa) {
+            return response()->json([
+                'exists' => false,
+                'message' => 'NIS tersedia.',
+            ]);
+        }
+
+        return response()->json([
+            'exists' => true,
+            'message' => 'NIS sudah dipakai' . ($siswa->NMCUST ? ' oleh ' . $siswa->NMCUST : '') . '.',
+            'nama' => $siswa->NMCUST,
+        ]);
+    }
+
+    /** Tambah 1 siswa ke preview, lalu simpan lewat tombol Simpan Data. */
+    public function storeManual(Request $request)
+    {
+        $request->validate(
+            [
+                'nama' => ['required', 'string', 'max:100'],
+                'id_kelas' => ['required'],
+                'angkatan' => ['required', 'string'],
+                'nis' => ['nullable', 'numeric'],
+                'nodaftar' => ['nullable', 'numeric'],
+                'gender' => ['nullable', 'string', 'max:20'],
+                'alamat' => ['nullable', 'string', 'max:255'],
+                'ortu' => ['nullable', 'string', 'max:100'],
+            ],
+            ValidationMessage::messages(),
+            array_merge(ValidationMessage::attributes(), [
+                'nama' => 'Nama',
+                'id_kelas' => 'Kelas',
+                'angkatan' => 'Angkatan',
+                'nis' => 'NIS',
+                'nodaftar' => 'No Pendaftaran',
+                'gender' => 'Jenis Kelamin',
+                'alamat' => 'Alamat',
+                'ortu' => 'Ortu / Wali',
+            ])
+        );
+
+        $nis = trim((string) ($request->nis ?? ''));
+        $nodaftar = trim((string) ($request->nodaftar ?? ''));
+        if ($nis === '' && $nodaftar === '') {
+            return response()->json([
+                'message' => 'Isi NIS atau No Pendaftaran.',
+                'errors' => [
+                    'nis' => ['Isi NIS atau No Pendaftaran.'],
+                    'nodaftar' => ['Isi NIS atau No Pendaftaran.'],
+                ],
+            ], 422);
+        }
+
+        $kelas = mst_kelas::find($request->id_kelas);
+        if (!$kelas) {
+            return response()->json(['message' => 'Kelas tidak ditemukan, silahkan muat ulang halaman.'], 422);
+        }
+
+        $angkatan = trim((string) $request->angkatan);
+        if (!mst_thn_aka::where('thn_aka', $angkatan)->exists()) {
+            return response()->json([
+                'message' => "Angkatan tidak ditemukan ({$angkatan}). Buat dulu di Tahun Akademik.",
+                'errors' => ['angkatan' => ["Angkatan tidak ditemukan ({$angkatan})."]],
+            ], 422);
+        }
+
+        $rowData = [
+            'nis' => $nis !== '' ? $nis : null,
+            'nodaftar' => $nodaftar !== '' ? $nodaftar : null,
+            'nama' => trim((string) $request->nama),
+            'unit' => trim((string) ($kelas->unit ?? '')),
+            'kelas' => trim((string) ($kelas->jenjang ?? '')),
+            'kelompok' => trim((string) ($kelas->kelas ?? '')),
+            'angkatan' => $angkatan,
+            'gender' => trim((string) ($request->gender ?? '')) ?: null,
+            'alamat' => trim((string) ($request->alamat ?? '')) ?: null,
+            'ortu' => trim((string) ($request->ortu ?? '')) ?: null,
+            'status' => 1,
+            'keterangan' => null,
+        ];
+
+        $statusKet = null;
+        if ($rowData['nis'] && scctcust::where('NOCUST', $rowData['nis'])->exists()) {
+            $rowData['status'] = 2;
+            $statusKet = "Siswa dengan NIS {$rowData['nis']} sudah ada, data akan diupdate";
+        }
+        if ($rowData['nodaftar'] && scctcust::where('NUM2ND', $rowData['nodaftar'])->exists()) {
+            $rowData['status'] = 2;
+            $statusKet = $statusKet
+                ? $statusKet . ", Siswa dengan nodaftar {$rowData['nodaftar']} sudah ada, data akan diupdate"
+                : "Siswa dengan nodaftar {$rowData['nodaftar']} sudah ada, data akan diupdate";
+        }
+        $rowData['keterangan'] = $statusKet;
+
+        $cached = Cache::get($this->cacheKey, []);
+        if (!is_array($cached)) {
+            $cached = [];
+        }
+        $cached[] = $rowData;
+        Cache::put($this->cacheKey, $cached, now()->addMinutes(60));
+
+        return response()->json([
+            'message' => 'Siswa ditambahkan ke daftar preview. Klik Simpan Data untuk menyimpan ke database.',
+            'data' => $rowData,
+        ], 200);
     }
 
     public function getColumn()
@@ -164,9 +288,10 @@ class ExportImportDataController extends Controller
             ];
 
             $conditionalColumns = ['nis', 'nodaftar'];
-            if (empty($headingsData) || !isset($headingsData[0][0])) throw new \Exception ('Tidak dapat membaca judul kolom dari file. Pastikan file memiliki header yang sesuai.');
-            $headings = $headingsData[0][0];
-            $headings = array_map('strtolower', $headings);
+            $headings = $this->resolveImportHeadings($headingsData);
+            if ($headings === []) {
+                throw new \Exception('Tidak dapat membaca judul kolom dari file. Pastikan sheet Data punya header yang sesuai.');
+            }
             $missingColumns = [];
             $hasNis = in_array('nis', $headings);
             $hasNodaftar = in_array('nodaftar', $headings);
@@ -432,6 +557,23 @@ class ExportImportDataController extends Controller
     {
         Cache::forget($this->cacheKey);
         return response()->json(['message' => 'Data dibersihkan'], 200);
+    }
+
+    /** Ambil header sheet Data, atau sheet pertama yang punya kolom nama/unit. */
+    private function resolveImportHeadings(array $headingsData): array
+    {
+        foreach ($headingsData as $sheetHeadings) {
+            $row = array_map(
+                fn ($v) => strtolower(trim((string) $v)),
+                $sheetHeadings[0] ?? []
+            );
+            $row = array_values(array_filter($row, fn ($v) => $v !== ''));
+            if (in_array('nama', $row, true) && in_array('unit', $row, true)) {
+                return $row;
+            }
+        }
+
+        return [];
     }
 
     private function normalizeImportItem(array $item): array

@@ -41,11 +41,18 @@
                 <h5 class="mb-0 me-2">{{($dataTitle??$mainTitle)}}</h5>
             </div>
             <div class="card-header-elements ms-auto">
-                <button type="button" class="btn btn-whatsapp" data-bs-toggle="modal"
-                        data-bs-target="#modal-import" title="Buat Data">
-                    <span class="ri-file-excel-2-line me-2"></span>
-                    Import Data Siswa
-                </button>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-whatsapp" data-bs-toggle="modal"
+                            data-bs-target="#modal-import" title="Import Excel">
+                        <span class="ri-file-excel-2-line me-2"></span>
+                        Import Data Siswa
+                    </button>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal"
+                            data-bs-target="#modal-tambah-siswa" title="Tambah Siswa">
+                        <span class="ri-user-add-line me-2"></span>
+                        Tambah Siswa
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -102,11 +109,13 @@
                         <ul class="list-group list-group-timeline mb-3">
                             <li class="list-group-item list-group-timeline-danger">File harus berformat <span class="fw-bold">XLS/XLSX</span>.</li>
                             <li class="list-group-item list-group-timeline-danger">Ukuran file tidak boleh lebih dari <span class="fw-bold">1024KB/1MB</span>.</li>
-                            <li class="list-group-item list-group-timeline-danger">Kolom wajib: <span class="fw-bold">NIS, Nama, Unit, Kelas, Kelompok, Angkatan</span>.</li>
-                            <li class="list-group-item list-group-timeline-danger">Kolom opsional: <span class="fw-bold">Gender, Alamat, Ortu</span> (bukan Ayah/Ibu).</li>
+                            <li class="list-group-item list-group-timeline-danger">File punya <span class="fw-bold">2 sheet: UPLOAD DATA SISWA</span> (diisi) dan <span class="fw-bold">Keterangan</span> (petunjuk).</li>
+                            <li class="list-group-item list-group-timeline-danger">Kolom: <span class="fw-bold">NIS, Nama, NODAFTAR, UNIT, KELAS, KELOMPOK, ANGKATAN, GENDER, ALAMAT, ORTU</span>.</li>
+                            <li class="list-group-item list-group-timeline-danger">Wajib: <span class="fw-bold">Nama, Unit, Kelas, Kelompok, Angkatan</span> plus salah satu <span class="fw-bold">NIS / NODAFTAR</span>.</li>
+                            <li class="list-group-item list-group-timeline-danger">Kolom opsional: <span class="fw-bold">Gender (L/P), Alamat, Ortu</span>.</li>
                             <li class="list-group-item list-group-timeline-danger">Contoh file yang dapat diproses untuk import:
                                 <a class="btn btn-sm btn-outline-primary fw-bolder"
-                                   href="{{asset('TEMPLATE MENU UPLOAD DATA SISWA.xlsx')}}"
+                                   href="{{asset('TEMPLATE MENU UPLOAD DATA SISWA.xlsx')}}?v=20261026-2sheet-data"
                                    download>
                                     <i class="ri ri-file-excel-line me-2"></i>Contoh File
                                 </a>
@@ -131,6 +140,115 @@
                                 </div>
                                 <div class="col">
                                     <input type="submit" value="Import Data" class="btn btn-primary w-100">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <form id="formTambahSiswa" class="mainForm" method="POST">
+        <div class="modal modal-blur fade" id="modal-tambah-siswa" tabindex="-1" role="dialog" aria-hidden="true"
+             data-bs-backdrop="static">
+            <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Tambah Siswa</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"
+                                title="tutup"></button>
+                    </div>
+                    <div class="modal-body">
+                        <fieldset class="form-fieldset">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label" for="tambah-nis">NIS</label>
+                                        <input type="text" class="form-control numberOnly" name="nis" id="tambah-nis"
+                                               autocomplete="off" placeholder="NIS">
+                                        <div class="form-text" id="tambah-nis-hint"></div>
+                                        <div class="invalid-feedback" role="alert"></div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label required" for="tambah-nama">Nama</label>
+                                        <input type="text" class="form-control" name="nama" id="tambah-nama"
+                                               autocomplete="off" placeholder="Nama siswa" required>
+                                        <div class="invalid-feedback" role="alert"></div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label required" for="tambah-id_kelas">Kelas (Unit / Kelas / Kelompok)</label>
+                                        <select class="form-select" name="id_kelas" id="tambah-id_kelas" required
+                                                data-control="select2" data-placeholder="Pilih kelas">
+                                            <option value="">Pilih kelas</option>
+                                            @isset($kelas)
+                                                @foreach($kelas as $item)
+                                                    <option value="{{ $item->id }}">
+                                                        {{ $item->unit }} - {{ $item->jenjang }} {{ $item->kelas }}
+                                                    </option>
+                                                @endforeach
+                                            @endisset
+                                        </select>
+                                        <div class="form-text">Setara kolom Excel: Unit, Kelas, Kelompok.</div>
+                                        <div class="invalid-feedback" role="alert"></div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label" for="tambah-gender">Gender</label>
+                                        <select class="form-select" name="gender" id="tambah-gender"
+                                                data-control="select2" data-placeholder="Opsional">
+                                            <option value="">-</option>
+                                            <option value="L">L</option>
+                                            <option value="P">P</option>
+                                        </select>
+                                        <div class="invalid-feedback" role="alert"></div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label" for="tambah-nodaftar">No Pendaftaran (NODAFTAR)</label>
+                                        <input type="text" class="form-control numberOnly" name="nodaftar"
+                                               id="tambah-nodaftar" autocomplete="off"
+                                               placeholder="Isi NIS atau NODAFTAR">
+                                        <div class="invalid-feedback" role="alert"></div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label" for="tambah-ortu">Ortu / Wali</label>
+                                        <input type="text" class="form-control" name="ortu" id="tambah-ortu"
+                                               autocomplete="off" placeholder="Nama ortu / wali">
+                                        <div class="invalid-feedback" role="alert"></div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label required" for="tambah-angkatan">Angkatan</label>
+                                        <select class="form-select" name="angkatan" id="tambah-angkatan" required
+                                                data-control="select2" data-placeholder="Pilih angkatan">
+                                            <option value="">Pilih angkatan</option>
+                                            @isset($thn_aka)
+                                                @foreach($thn_aka as $item)
+                                                    <option value="{{ $item->thn_aka }}">{{ $item->thn_aka }}</option>
+                                                @endforeach
+                                            @endisset
+                                        </select>
+                                        <div class="invalid-feedback" role="alert"></div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label" for="tambah-alamat">Alamat</label>
+                                        <textarea class="form-control" name="alamat" id="tambah-alamat" rows="3"
+                                                  placeholder="Alamat"></textarea>
+                                        <div class="invalid-feedback" role="alert"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </fieldset>
+                    </div>
+                    <div class="modal-footer">
+                        <div class="w-100">
+                            <div class="row">
+                                <div class="col">
+                                    <input type="reset" value="Batal" class="btn btn-outline-secondary w-100"
+                                           data-bs-dismiss="modal">
+                                </div>
+                                <div class="col">
+                                    <input type="submit" value="Tambah ke Preview" class="btn btn-primary w-100">
                                 </div>
                             </div>
                         </div>
@@ -342,6 +460,93 @@
 
             initializeFilePond('file');
 
+            $(document).on('keypress', '.numberOnly', function (e) {
+                const charCode = e.which ? e.which : e.keyCode;
+                if (charCode > 31 && (charCode < 48 || charCode > 57)) {
+                    return false;
+                }
+            });
+
+            const nisInput = document.getElementById('tambah-nis');
+            const nisHint = document.getElementById('tambah-nis-hint');
+            let nisCheckTimer = null;
+            let nisCheckAbort = null;
+
+            function setNisHint(text, type) {
+                if (!nisHint) return;
+                nisHint.textContent = text || '';
+                nisHint.classList.remove('text-success', 'text-danger', 'text-muted');
+                if (type === 'ok') nisHint.classList.add('text-success');
+                else if (type === 'used') nisHint.classList.add('text-danger');
+                else nisHint.classList.add('text-muted');
+            }
+
+            function checkNisAvailability(nis) {
+                if (!nisHint) return;
+                if (!nis) {
+                    setNisHint('', 'muted');
+                    return;
+                }
+                if (!/^\d+$/.test(nis)) {
+                    setNisHint('NIS harus berupa angka.', 'used');
+                    return;
+                }
+
+                setNisHint('Memeriksa NIS...', 'muted');
+                if (nisCheckAbort) {
+                    nisCheckAbort.abort();
+                }
+                nisCheckAbort = new AbortController();
+
+                fetch('{{ route('admin.master-data.export-import-data.check-nis') }}?nis=' + encodeURIComponent(nis), {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    signal: nisCheckAbort.signal,
+                })
+                    .then(function (response) {
+                        if (!response.ok) throw new Error('gagal');
+                        return response.json();
+                    })
+                    .then(function (data) {
+                        if (data.exists) {
+                            setNisHint(data.message || 'NIS sudah dipakai.', 'used');
+                        } else {
+                            setNisHint(data.message || 'NIS tersedia.', 'ok');
+                        }
+                    })
+                    .catch(function (err) {
+                        if (err.name === 'AbortError') return;
+                        setNisHint('', 'muted');
+                    });
+            }
+
+            if (nisInput) {
+                nisInput.addEventListener('input', function () {
+                    clearTimeout(nisCheckTimer);
+                    const value = (this.value || '').trim();
+                    if (!value) {
+                        setNisHint('', 'muted');
+                        return;
+                    }
+                    nisCheckTimer = setTimeout(function () {
+                        checkNisAvailability(value);
+                    }, 400);
+                });
+                nisInput.addEventListener('blur', function () {
+                    clearTimeout(nisCheckTimer);
+                    checkNisAvailability((this.value || '').trim());
+                });
+            }
+
+            document.getElementById('modal-tambah-siswa')?.addEventListener('hidden.bs.modal', function () {
+                clearTimeout(nisCheckTimer);
+                if (nisCheckAbort) nisCheckAbort.abort();
+                setNisHint('', 'muted');
+            });
+
             if (dtOptions.dataUrl && dtOptions.columnUrl) {
                 getDT(dtOptions);
                 if (dtOptions.formId) {
@@ -371,9 +576,13 @@
                     let $this = $(this);
                     // select2Focus($this);
                     $this.wrap('<div class="position-relative"></div>').select2({
-                        placeholder: 'Select value',
+                        placeholder: $this.data('placeholder') || 'Pilih',
                         language: 'id',
-                        dropdownParent: $this.parent()
+                        dropdownParent: $this.closest('.modal').length
+                            ? $this.closest('.modal')
+                            : $this.parent(),
+                        width: '100%',
+                        allowClear: true,
                     });
                 });
             }
@@ -396,6 +605,10 @@
                     if (formId === "formImport") {
                         loadingAlert('Meng-unggah data siswa');
                         url = '{{route('admin.master-data.export-import-data.store')}}';
+                        method = 'POST';
+                    } else if (formId === "formTambahSiswa") {
+                        loadingAlert('Menambahkan siswa ke preview');
+                        url = '{{route('admin.master-data.export-import-data.store-manual')}}';
                         method = 'POST';
                     }else if (formId === "formValidate"){
                         loadingAlert('Menyimpan data siswa');
@@ -445,7 +658,7 @@
                                 const errors = error.error.error || error.error.errors;
                                 errorAlert(error.error.message);
                                 if (errors) {
-                                    processErrors(errors)
+                                    processErros(errors)
                                 }
                             } else {
                                 const errorMessages = {
@@ -513,7 +726,7 @@
                             const errors = error.error || error.errors;
                             errorAlert(error.message);
                             if (errors) {
-                                processErrors(errors)
+                                processErros(errors)
                             }
                         } else {
                             const errorMessages = {

@@ -122,11 +122,12 @@
                         </select>
                     </div>
                     <div class="col-md-6 col-xl-7">
-                        <label class="required form-label" for="periode_tahun">Periode Tagihan</label>
+                        <label class="form-label" for="periode_tahun">Periode Tagihan</label>
                         <div class="row g-2">
                             <div class="col-sm-6">
                                 <select class="form-select" id="periode_tahun" name="periode_tahun"
-                                        required data-control="select2" data-placeholder="Pilih tahun">
+                                        data-control="select2" data-placeholder="Tahun (opsional)" data-allow-clear="true">
+                                    <option value="">Tanpa tahun</option>
                                     @foreach(($periode_tahun_list ?? []) as $tahun)
                                         <option value="{{ $tahun }}"
                                             @selected(($periode_tahun_default ?? date('Y')) == $tahun)>
@@ -137,7 +138,8 @@
                             </div>
                             <div class="col-sm-6">
                                 <select class="form-select" id="periode_bulan" name="periode_bulan"
-                                        required data-control="select2" data-placeholder="Pilih bulan">
+                                        data-control="select2" data-placeholder="Bulan (opsional)" data-allow-clear="true">
+                                    <option value="">Tanpa bulan / kosongkan periode</option>
                                     @foreach($bulanList as $bulan => $label)
                                         <option value="{{ $bulan }}"
                                             @selected(($periode_bulan_default ?? date('n')) == $bulan)>
@@ -192,12 +194,12 @@
                     </div>
                     <div class="modal-body">
                         <ul class="list-group list-group-timeline mb-3">
-                            <li class="list-group-item list-group-timeline-danger">File harus berformat <span class="fw-bold">XLS/XLSX</span>.</li>
+                            <li class="list-group-item list-group-timeline-danger">File harus berformat <span class="fw-bold">XLSX</span> (Excel terbaru), bukan Excel 97/2003 (.xls).</li>
                             <li class="list-group-item list-group-timeline-danger">Ukuran file tidak boleh lebih dari <span class="fw-bold">1024KB/1MB</span>.</li>
-                            <li class="list-group-item list-group-timeline-danger">Kolom yang harus terisi: <span class="fw-bold">NIS, Nominal</span>.</li>
+                            <li class="list-group-item list-group-timeline-danger">Kolom wajib hanya: <span class="fw-bold">NIS</span> dan <span class="fw-bold">Nominal</span>. Kolom lain (Nama, Unit, Kelas, dll) diabaikan.</li>
                             <li class="list-group-item list-group-timeline-danger">Contoh file yang dapat diproses untuk import:
                                 <a class="btn btn-sm btn-outline-primary fw-bolder"
-                                   href="{{asset('contoh_excel/TEMPLATE MENU UPLOAD TAGIHAN EXCEL.xls')}}">
+                                   href="{{asset('contoh_excel/TEMPLATE MENU UPLOAD TAGIHAN EXCEL.xlsx')}}?v=20261026-xlsx-nis-nominal">
                                     <i class="ri ri-file-excel-line me-2"></i>Contoh File
                                 </a>
                             </li>
@@ -205,7 +207,7 @@
 
                         <fieldset class="form-fieldset">
                             <div class="mb-3">
-                                <label class="form-label text-capitalize required" for="file">File (.XLS, .XLSX)</label>
+                                <label class="form-label text-capitalize required" for="file">File (.XLSX)</label>
                                 <input type="file" id="file" class="form-control"
                                        name="fileImport"
                                        placeholder="file" required>
@@ -383,11 +385,11 @@
 
         function syncPeriodePreview() {
             const tahun = $('#periode_tahun').val();
-            const bulan = String($('#periode_bulan').val() || '').padStart(2, '0');
-            if (tahun && bulan) {
-                $('#periode_preview').text(`${tahun}${bulan}`);
+            const bulanRaw = $('#periode_bulan').val();
+            if (tahun && bulanRaw) {
+                $('#periode_preview').text(`${tahun}${String(bulanRaw).padStart(2, '0')}`);
             } else {
-                $('#periode_preview').text('-');
+                $('#periode_preview').text('kosong');
             }
         }
 
@@ -431,6 +433,7 @@
                         placeholder: $this.data('placeholder') || 'Pilih',
                         dropdownParent: $this.parent(),
                         width: '100%',
+                        allowClear: $this.data('allow-clear') === true || $this.data('allow-clear') === 'true',
                     });
                 });
             }

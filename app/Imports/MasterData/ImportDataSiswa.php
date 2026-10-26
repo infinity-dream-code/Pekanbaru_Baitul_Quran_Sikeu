@@ -16,6 +16,7 @@ class ImportDataSiswa implements WithMultipleSheets, ToCollection, WithHeadingRo
 {
     public function sheets(): array
     {
+        // Hanya sheet Data (paling kiri). Sheet Keterangan tidak diimpor.
         return [
             0 => $this,
         ];

@@ -171,14 +171,22 @@ class UploadTagihanExcelController extends Controller
 
         try {
             $headingsData = (new HeadingRowImport)->toArray($file);
-            $requiredColumns = ['nis', 'nama', 'unit', 'kelas', 'kelompok', 'angkatan', 'nominal'];
-            if (empty($headingsData) || !isset($headingsData[0][0])) {
-                throw new \Exception('Tidak dapat membaca judul kolom dari file. Pastikan file memiliki header yang sesuai.');
+            $requiredColumns = ['nis', 'nominal'];
+            $headings = [];
+            foreach ($headingsData as $sheetHeadings) {
+                $row = array_map(
+                    static fn ($heading) => strtolower(trim((string) $heading)),
+                    $sheetHeadings[0] ?? []
+                );
+                $row = array_values(array_filter($row, fn ($v) => $v !== ''));
+                if (in_array('nis', $row, true) && in_array('nominal', $row, true)) {
+                    $headings = $row;
+                    break;
+                }
             }
-            $headings = array_map(
-                static fn ($heading) => strtolower(trim((string) $heading)),
-                $headingsData[0][0]
-            );
+            if ($headings === []) {
+                throw new \Exception('Tidak dapat membaca judul kolom dari file. Pastikan sheet Data punya kolom NIS dan Nominal.');
+            }
             $missingColumns = [];
             foreach ($requiredColumns as $column) {
                 if (!in_array($column, $headings, true)) {
@@ -243,14 +251,18 @@ class UploadTagihanExcelController extends Controller
     {
         $request->validate([
             'tagihan' => ['required'],
-            'periode_tahun' => ['required', 'integer', 'digits:4', 'min:2000', 'max:2099'],
-            'periode_bulan' => ['required', 'integer', 'min:1', 'max:12'],
+            'periode_tahun' => ['nullable', 'integer', 'digits:4', 'min:2000', 'max:2099'],
+            'periode_bulan' => ['nullable', 'integer', 'min:1', 'max:12'],
         ], ValidationMessage::messages(), ValidationMessage::attributes());
 
         $data = Cache::get($this->cacheKey);
         if (empty($data))return response()->json(['message' => 'Silahkan import data tagihan terlebih dahulu'], 422);
 
-        $bta = sprintf('%04d%02d', (int) $request->periode_tahun, (int) $request->periode_bulan);
+        $tahun = $request->input('periode_tahun');
+        $bulan = $request->input('periode_bulan');
+        $bta = ($tahun !== null && $tahun !== '' && $bulan !== null && $bulan !== '')
+            ? sprintf('%04d%02d', (int) $tahun, (int) $bulan)
+            : '';
 
         $tagihan = mst_tagihan::where('urut', $request->tagihan)->first();
         if (!$tagihan) return response()->json(['message' => 'Tagihan tidak ditemukan, silahkan muat ulang halaman!'], 422);

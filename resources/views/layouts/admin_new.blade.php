@@ -184,7 +184,8 @@
                             <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);"
                                data-bs-toggle="dropdown">
                                 <div class="avatar avatar-online">
-                                    <img src="{{asset(config('app.logo'))}}" alt class="rounded-circle">
+                                    <img src="{{asset(config('app.logo'))}}" alt class="rounded-circle"
+                                         style="object-fit:cover;object-position:left center;">
                                 </div>
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end">
@@ -194,7 +195,8 @@
                                             <div class="flex-shrink-0 me-2">
                                                 <div class="avatar avatar-online">
                                                     <img src="{{asset(config('app.logo'))}}" alt
-                                                         class="rounded-circle">
+                                                         class="rounded-circle"
+                                                         style="object-fit:cover;object-position:left center;">
                                                 </div>
                                             </div>
                                             <div class="flex-grow-1">

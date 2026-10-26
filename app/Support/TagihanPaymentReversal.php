@@ -8,34 +8,59 @@ use Auth;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use Throwable;
 
 class TagihanPaymentReversal
 {
-    private const CASH_FIDBANK = '1140000';
     private const SALDO_FIDBANK = '1140002';
 
-    /** Batalkan pembayaran terakhir: kosongkan KREDIT baris terakhir, lalu panggil procedure DB. */
+    /** Manual Pembayaran teller/cash. */
+    private const TELLER_FIDBANKS = ['1140000', '1140001', '1140003', '1140004', '1140005', '1200001', '1200002'];
+
+    /**
+     * Batalkan pembayaran terakhir tanpa stored procedure.
+     * Procedure CancelPaymentSaldo(_MultiVA...) di DB ini membaca kolom
+     * yang tidak ada (VA / isreversal) → SQLSTATE 1054.
+     */
     public function reverseLastPayment(scctbill $tagihan, Request $request): void
     {
         if (!$this->hasBillPayments($tagihan)) {
             return;
         }
 
-        $restore = $this->resolveSaldoRestore($tagihan);
+        $username = (string) (Auth::user()->username ?? Auth::id() ?? 'system');
+        $billAm = (int) ($tagihan->BILLAM ?? 0);
+        $nominal = $this->resolvePaidAmount($tagihan);
+        $isCash = $this->shouldCancelAsTellerPayment($tagihan);
 
-        $this->clearLastPaymentKredit($tagihan);
+        $this->resetBillToUnpaid($tagihan, $billAm);
 
-        $this->callCancelPayment($tagihan, $restore, $request);
+        try {
+            $this->markPaymentRowsReversed($tagihan);
+        } catch (Throwable $e) {
+            Log::warning('tagihan-payment.mark_reversed.skipped', [
+                'aa' => $tagihan->AA,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
-        $tagihan->refresh();
-
-        $this->restoreMultiVaSaldo($tagihan, $restore);
+        try {
+            if ($isCash) {
+                $this->insertAuditRow($tagihan, 'REVERSAL', $username, 0, 0, null);
+            } elseif ($nominal > 0) {
+                $reffBank = MultiVa::paymentReffBank(MultiVa::resolveFromBill($tagihan) ?? MultiVa::OPEN);
+                $this->insertAuditRow($tagihan, 'JURNAL SALDO', $username, 0, $nominal, $reffBank);
+            }
+        } catch (Throwable $e) {
+            Log::warning('tagihan-payment.audit.skipped', [
+                'aa' => $tagihan->AA,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
-    /** Hapus tagihan: batalkan semua pembayaran dari yang terakhir. */
     public function reverseAllPayments(scctbill $tagihan, Request $request): void
     {
         $guard = 0;
@@ -87,8 +112,9 @@ class TagihanPaymentReversal
                     ->whereColumn('sccttran.CUSTID', "{$billAlias}.CUSTID")
                     ->where('sccttran.DEBET', '>', 0)
                     ->where(function ($q) {
-                        $q->whereRaw('UPPER(TRIM(COALESCE(sccttran.METODE, ""))) = ?', ['FROM TELLER'])
-                            ->orWhere('sccttran.FIDBANK', self::SALDO_FIDBANK);
+                        $q->whereRaw('UPPER(TRIM(COALESCE(sccttran.METODE, ""))) IN (?, ?)', ['FROM TELLER', 'CASH'])
+                            ->orWhere('sccttran.FIDBANK', self::SALDO_FIDBANK)
+                            ->orWhereIn('sccttran.FIDBANK', self::TELLER_FIDBANKS);
                     });
             });
     }
@@ -99,275 +125,219 @@ class TagihanPaymentReversal
             return true;
         }
 
-        return $this->paymentTransactionQuery($tagihan)->exists();
+        if ((int) ($tagihan->PAIDST ?? 0) === 1) {
+            return true;
+        }
+
+        try {
+            return $this->paymentTransactionQuery($tagihan)->exists();
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    private function shouldCancelAsTellerPayment(scctbill $tagihan): bool
+    {
+        $fidBank = $this->normalizeFidBank($tagihan->FIDBANK ?? '');
+
+        if ($fidBank === self::SALDO_FIDBANK) {
+            return false;
+        }
+
+        if ($fidBank === '' || in_array($fidBank, self::TELLER_FIDBANKS, true)) {
+            return true;
+        }
+
+        try {
+            return sccttran::query()
+                ->where('CUSTID', $tagihan->CUSTID)
+                ->where('BILLID', $tagihan->AA)
+                ->whereRaw('UPPER(TRIM(COALESCE(METODE, ""))) IN (?, ?)', ['FROM TELLER', 'CASH'])
+                ->where(function ($q) {
+                    $q->whereNull('FIDBANK')
+                        ->orWhereRaw("TRIM(COALESCE(CAST(FIDBANK AS CHAR), '')) != ?", [self::SALDO_FIDBANK]);
+                })
+                ->exists();
+        } catch (Throwable) {
+            return $fidBank !== self::SALDO_FIDBANK;
+        }
+    }
+
+    private function normalizeFidBank(?string $fidBank): string
+    {
+        return (string) preg_replace('/\D/', '', (string) $fidBank);
     }
 
     private function paymentTransactionQuery(scctbill $tagihan)
     {
-        return sccttran::query()
-            ->where('BILLID', $tagihan->AA)
+        $query = sccttran::query()
             ->where('CUSTID', $tagihan->CUSTID)
+            ->where('BILLID', $tagihan->AA)
             ->where('DEBET', '>', 0)
             ->where(function ($q) {
-                $q->whereRaw('UPPER(TRIM(COALESCE(METODE, ""))) = ?', ['FROM TELLER'])
-                    ->orWhere('FIDBANK', self::SALDO_FIDBANK);
+                $q->whereRaw('UPPER(TRIM(COALESCE(METODE, ""))) IN (?, ?)', ['FROM TELLER', 'CASH'])
+                    ->orWhere('FIDBANK', self::SALDO_FIDBANK)
+                    ->orWhereIn('FIDBANK', self::TELLER_FIDBANKS);
+            })
+            ->whereRaw('UPPER(TRIM(COALESCE(METODE, ""))) NOT IN (?, ?)', ['REVERSAL', 'JURNAL SALDO']);
+
+        if ($this->tranHasColumn('isreversal')) {
+            $query->where(function ($q) {
+                $q->whereNull('isreversal')
+                    ->orWhere('isreversal', 0)
+                    ->orWhere('isreversal', '0');
             });
+        }
+
+        return $query;
     }
 
-    private function lastPaymentRow(scctbill $tagihan): ?sccttran
+    private function resolvePaidAmount(scctbill $tagihan): int
     {
-        return $this->paymentTransactionQuery($tagihan)
-            ->orderByDesc('INSTALLMENT')
-            ->orderByDesc('urut')
-            ->first();
-    }
-
-    /**
-     * Saldo VA hanya kembali jika pembayaran terakhir memakai VA 93/94 (bukan cash).
-     *
-     * @return array{amount:int,reffbank:string,installment:int}|null
-     */
-    private function resolveSaldoRestore(scctbill $tagihan): ?array
-    {
-        $last = $this->lastPaymentRow($tagihan);
-        if (!$last) {
-            return null;
+        $billPaid = (int) ($tagihan->BILLPAID ?? 0);
+        if ($billPaid > 0) {
+            return $billPaid;
         }
-
-        $fidBank = preg_replace('/\D/', '', (string) ($tagihan->FIDBANK ?? $last->FIDBANK ?? ''));
-        if ($fidBank === self::CASH_FIDBANK) {
-            return null;
-        }
-
-        $amount = (int) ($last->DEBET ?? 0);
-        $reffBank = MultiVa::normalize($last->REFFBANK)
-            ?? MultiVa::resolveFromBill($tagihan);
-
-        if ($amount <= 0 || $reffBank === null) {
-            return null;
-        }
-
-        return [
-            'amount' => $amount,
-            'reffbank' => $reffBank,
-            'installment' => (int) ($last->INSTALLMENT ?? 0),
-        ];
-    }
-
-    private function clearLastPaymentKredit(scctbill $tagihan): void
-    {
-        $lastInstallment = (int) $this->paymentTransactionQuery($tagihan)->max('INSTALLMENT');
-
-        if ($lastInstallment <= 0) {
-            return;
-        }
-
-        sccttran::query()
-            ->where('BILLID', $tagihan->AA)
-            ->where('CUSTID', $tagihan->CUSTID)
-            ->where('INSTALLMENT', $lastInstallment)
-            ->whereRaw('UPPER(TRIM(COALESCE(METODE, ""))) = ?', ['FROM TELLER'])
-            ->where('KREDIT', '>', 0)
-            ->update(['KREDIT' => 0]);
-    }
-
-    private function callCancelPayment(scctbill $tagihan, ?array $restore, Request $request): void
-    {
-        $custId = (string) $tagihan->CUSTID;
-        $aa = (string) $tagihan->AA;
-        $billCd = (string) ($tagihan->BILLCD ?? '');
-        $userId = $this->resolveCyberKeyUserId();
-        $hostname = Str::limit((string) ($request->ip() ?? ''), 250, '');
-
-        $candidates = [
-            MultiVa::cancelProcedure($restore['reffbank'] ?? ''),
-        ];
-
-        if ($restore) {
-            $candidates[] = MultiVa::cancelProcedureLegacy($restore['reffbank']);
-        }
-
-        $candidates[] = 'CancelPaymentSaldo';
-        $candidates = array_values(array_unique(array_filter($candidates)));
-
-        $lastIndex = count($candidates) - 1;
-        foreach ($candidates as $index => $procedureName) {
-            try {
-                $this->callNamedCancelProcedure($procedureName, $custId, $aa, $billCd, $userId, $hostname);
-
-                return;
-            } catch (Throwable $e) {
-                $isLast = $index === $lastIndex;
-                if ($isLast || !$this->isMissingRoutine($e, $procedureName)) {
-                    throw $e;
-                }
-
-                Log::info('tagihan-payment.cancel.fallback_legacy', [
-                    'missing' => $procedureName,
-                    'aa' => $aa,
-                ]);
-            }
-        }
-    }
-
-    private function callNamedCancelProcedure(
-        string $procedure,
-        string $custId,
-        string $aa,
-        string $billCd,
-        string $userId,
-        string $hostname
-    ): void {
-        Log::info('tagihan-payment.cancel.call_procedure', [
-            'procedure' => $procedure,
-            'custid' => $custId,
-            'aa' => $aa,
-            'billcd' => $billCd,
-            'users' => $userId,
-            'hostname' => $hostname,
-        ]);
-
-        $pdo = DB::connection('DATA_MYSQL')->getPdo();
-        $stmt = $pdo->prepare("CALL {$procedure}(?, ?, ?, ?, ?)");
-        $stmt->execute([$custId, $aa, $billCd, $userId, $hostname]);
-
-        do {
-            $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        } while ($stmt->nextRowset());
-    }
-
-    private function isMissingRoutine(Throwable $e, string $routine): bool
-    {
-        $message = $e->getMessage();
-
-        return stripos($message, $routine) !== false
-            && (
-                stripos($message, 'does not exist') !== false
-                || stripos($message, "doesn't exist") !== false
-                || stripos($message, 'unknown procedure') !== false
-                || stripos($message, '1305') !== false
-            );
-    }
-
-    /** View saldo 93/94 hanya menjumlah KREDIT-DEBET yang REFFBANK-nya 93/94. */
-    private function restoreMultiVaSaldo(scctbill $tagihan, ?array $restore): void
-    {
-        if ($restore === null) {
-            return;
-        }
-
-        $reffBank = $restore['reffbank'];
-        $amount = $restore['amount'];
-
-        if ($this->hasMatchingVaKredit($tagihan, $reffBank, $amount)) {
-            return;
-        }
-
-        $patched = $this->patchRecentReversalReffBank($tagihan, $reffBank, $amount);
-        if ($patched) {
-            Log::info('tagihan-payment.cancel.patched_reffbank', [
-                'aa' => $tagihan->AA,
-                'reffbank' => $reffBank,
-                'amount' => $amount,
-            ]);
-
-            return;
-        }
-
-        $this->insertSaldoRestoreRow($tagihan, $restore);
-
-        Log::info('tagihan-payment.cancel.inserted_va_kredit', [
-            'aa' => $tagihan->AA,
-            'reffbank' => $reffBank,
-            'amount' => $amount,
-        ]);
-    }
-
-    private function hasMatchingVaKredit(scctbill $tagihan, string $reffBank, int $amount): bool
-    {
-        return sccttran::query()
-            ->where('CUSTID', $tagihan->CUSTID)
-            ->where('BILLID', $tagihan->AA)
-            ->where('REFFBANK', $reffBank)
-            ->where('KREDIT', '>=', $amount)
-            ->where(function ($q) {
-                $q->whereRaw('UPPER(TRIM(COALESCE(METODE, ""))) IN (?, ?)', ['REVERSAL', 'JURNAL SALDO'])
-                    ->orWhere('isreversal', 1);
-            })
-            ->where('TRXDATE', '>=', now()->subMinutes(10))
-            ->exists();
-    }
-
-    private function patchRecentReversalReffBank(scctbill $tagihan, string $reffBank, int $amount): bool
-    {
-        $row = sccttran::query()
-            ->where('CUSTID', $tagihan->CUSTID)
-            ->where('BILLID', $tagihan->AA)
-            ->where('KREDIT', '>=', $amount)
-            ->where(function ($q) {
-                $q->whereRaw('UPPER(TRIM(COALESCE(METODE, ""))) IN (?, ?)', ['REVERSAL', 'JURNAL SALDO'])
-                    ->orWhere('isreversal', 1);
-            })
-            ->where(function ($q) {
-                $q->whereNull('REFFBANK')
-                    ->orWhereRaw("TRIM(COALESCE(CAST(REFFBANK AS CHAR), '')) = ''")
-                    ->orWhere('REFFBANK', '101');
-            })
-            ->orderByDesc('urut')
-            ->first();
-
-        if (!$row) {
-            return false;
-        }
-
-        $row->REFFBANK = $reffBank;
-        $row->save();
-
-        return true;
-    }
-
-    private function insertSaldoRestoreRow(scctbill $tagihan, array $restore): void
-    {
-        $nextUrut = ((int) sccttran::query()->max('urut')) + 1;
-
-        $payload = [
-            'urut' => $nextUrut,
-            'CUSTID' => $tagihan->CUSTID,
-            'METODE' => 'JURNAL SALDO',
-            'TRXDATE' => now(),
-            'NOREFF' => 'REVERSAL',
-            'FIDBANK' => self::SALDO_FIDBANK,
-            'DEBET' => 0,
-            'KREDIT' => $restore['amount'],
-            'REFFBANK' => $restore['reffbank'],
-            'BILLID' => $tagihan->AA,
-            'BILLTARGET' => $tagihan->BILLNM,
-            'INSTALLMENT' => $restore['installment'],
-            'TRANSNO' => $tagihan->TRANSNO ?? 'REVERSAL',
-            'isreversal' => 1,
-        ];
 
         try {
-            sccttran::create($payload);
+            $fromTran = (int) $this->paymentTransactionQuery($tagihan)->sum('DEBET');
+            if ($fromTran > 0) {
+                return $fromTran;
+            }
+        } catch (Throwable) {
+            // pakai nominal tagihan
+        }
+
+        return max(0, (int) ($tagihan->BILLAM ?? 0));
+    }
+
+    private function markPaymentRowsReversed(scctbill $tagihan): void
+    {
+        if (!$this->tranHasColumn('isreversal')) {
+            return;
+        }
+
+        $this->paymentTransactionQuery($tagihan)->update(['isreversal' => 1]);
+    }
+
+    private function resetBillToUnpaid(scctbill $tagihan, int $billAm): void
+    {
+        $core = [
+            'PAIDST' => 0,
+            'PAIDDT' => null,
+            'BILLPAID' => 0,
+            'PAYMENTLEFT' => $billAm,
+            'INSTALLMENT' => 0,
+            'FIDBANK' => null,
+            'NOREFF' => null,
+        ];
+
+        $payload = $this->existingColumns('scctbill', array_merge($core, [
+            'PAIDDT_ACTUAL' => null,
+            'FRecID' => null,
+            'TRANSNO' => null,
+        ]));
+
+        if ($payload === []) {
+            $payload = $core;
+        }
+
+        $query = DB::connection('DATA_MYSQL')
+            ->table('scctbill')
+            ->where('AA', $tagihan->AA)
+            ->where('CUSTID', $tagihan->CUSTID);
+
+        try {
+            $query->update($payload);
         } catch (Throwable $e) {
-            if (stripos($e->getMessage(), 'isreversal') === false
-                && stripos($e->getMessage(), 'Unknown column') === false) {
+            if (stripos($e->getMessage(), 'Unknown column') === false
+                && stripos($e->getMessage(), '1054') === false) {
                 throw $e;
             }
 
-            unset($payload['isreversal']);
-            sccttran::create($payload);
+            $query->update($core);
+            $payload = $core;
         }
+
+        $tagihan->forceFill($payload);
     }
 
-    private function resolveCyberKeyUserId(): string
-    {
-        $user = Auth::user();
-
-        if ($user === null) {
-            return '';
+    private function insertAuditRow(
+        scctbill $tagihan,
+        string $metode,
+        string $username,
+        int $debet,
+        int $kredit,
+        ?string $reffBank
+    ): void {
+        $installment = 0;
+        if ($this->tranHasColumn('INSTALLMENT')) {
+            $installment = (int) DB::connection('DATA_MYSQL')
+                ->table('sccttran')
+                ->where('BILLID', $tagihan->AA)
+                ->where('CUSTID', $tagihan->CUSTID)
+                ->max('INSTALLMENT');
         }
 
-        return (string) ($user->urut ?? Auth::id() ?? '');
+        $payload = $this->existingColumns('sccttran', [
+            'CUSTID' => $tagihan->CUSTID,
+            'METODE' => $metode,
+            'TRXDATE' => now()->format('Y-m-d H:i:s'),
+            'NOREFF' => 'REVERSAL',
+            'FIDBANK' => (string) ($tagihan->FIDBANK ?? ''),
+            'DEBET' => $debet,
+            'KREDIT' => $kredit,
+            'REFFBANK' => $reffBank,
+            'BILLID' => $tagihan->AA,
+            'BILLTARGET' => $tagihan->BILLNM,
+            'INSTALLMENT' => $installment,
+            'TRANSNO' => $tagihan->TRANSNO ?? $username,
+            'isreversal' => 1,
+        ]);
+
+        if ($this->tranHasColumn('urut') && !isset($payload['urut'])) {
+            $payload['urut'] = ((int) DB::connection('DATA_MYSQL')->table('sccttran')->max('urut')) + 1;
+        }
+
+        if ($payload === [] || !isset($payload['CUSTID'])) {
+            return;
+        }
+
+        DB::connection('DATA_MYSQL')->table('sccttran')->insert($payload);
+    }
+
+    private function existingColumns(string $table, array $payload): array
+    {
+        $filtered = [];
+        foreach ($payload as $column => $value) {
+            if ($this->tableHasColumn($table, $column)) {
+                $filtered[$column] = $value;
+            }
+        }
+
+        return $filtered;
+    }
+
+    private function tableHasColumn(string $table, string $column): bool
+    {
+        static $cache = [];
+        $key = $table . '.' . $column;
+
+        if (array_key_exists($key, $cache)) {
+            return $cache[$key];
+        }
+
+        try {
+            $cache[$key] = Schema::connection('DATA_MYSQL')->hasColumn($table, $column);
+        } catch (Throwable) {
+            $cache[$key] = false;
+        }
+
+        return $cache[$key];
+    }
+
+    private function tranHasColumn(string $column): bool
+    {
+        return $this->tableHasColumn('sccttran', $column);
     }
 }

@@ -333,10 +333,60 @@ class MultiVa
         ]);
 
         if ($view) {
-            return DB::connection('DATA_MYSQL')->table($view);
+            return self::saldoQueryFromView($view);
         }
 
         return self::fallbackSaldoQuery();
+    }
+
+    /**
+     * Semua siswa (scctcust) + saldo dari view.
+     * View v_saldo_va di client ini hanya berisi yang pernah transfer.
+     */
+    private static function saldoQueryFromView(string $view)
+    {
+        $conn = DB::connection('DATA_MYSQL');
+        $select = [
+            'scctcust.CUSTID as CUSTID',
+            'scctcust.NOCUST as NOCUST',
+            'scctcust.NMCUST as NMCUST',
+            'scctcust.CODE01 as CODE01',
+            'scctcust.CODE02 as CODE02',
+            'scctcust.CODE03 as CODE03',
+            'scctcust.DESC02 as DESC02',
+            'scctcust.DESC03 as DESC03',
+            'scctcust.DESC04 as DESC04',
+            'scctcust.NUM2ND as NUM2ND',
+            DB::raw('COALESCE(vsaldo.SALDO, 0) AS SALDO'),
+        ];
+
+        $joinCol = self::viewJoinColumn($view);
+
+        if ($joinCol === null) {
+            return self::fallbackSaldoQuery();
+        }
+
+        return $conn->table('scctcust')
+            ->leftJoin($view . ' as vsaldo', 'vsaldo.' . $joinCol, '=', 'scctcust.' . $joinCol)
+            ->select($select);
+    }
+
+    private static function viewJoinColumn(string $view): ?string
+    {
+        try {
+            $cols = array_map('strtoupper', Schema::connection('DATA_MYSQL')->getColumnListing($view));
+        } catch (\Throwable) {
+            return 'CUSTID';
+        }
+
+        if (in_array('CUSTID', $cols, true)) {
+            return 'CUSTID';
+        }
+        if (in_array('NOCUST', $cols, true)) {
+            return 'NOCUST';
+        }
+
+        return null;
     }
 
     /** View transaksi saldo: v_trans_saldo (open-only) / multiVA / fallback. */
@@ -398,27 +448,77 @@ class MultiVa
     public static function fallbackTransQuery()
     {
         return DB::connection('DATA_MYSQL')
-            ->table('sccttran')
+            ->table('sccttran as trx')
+            ->leftJoin('scctcust as c', 'c.CUSTID', '=', 'trx.CUSTID')
             ->where(function ($q) {
-                $q->whereNull('FIDBANK')
-                    ->orWhereRaw("TRIM(COALESCE(CAST(FIDBANK AS CHAR), '')) = ''")
-                    ->orWhereRaw("TRIM(COALESCE(CAST(FIDBANK AS CHAR), '')) != ?", ['1140000']);
-            });
+                $q->whereNull('trx.FIDBANK')
+                    ->orWhereRaw("TRIM(COALESCE(CAST(trx.FIDBANK AS CHAR), '')) = ''")
+                    ->orWhereRaw("TRIM(COALESCE(CAST(trx.FIDBANK AS CHAR), '')) != ?", ['1140000']);
+            })
+            ->select([
+                'trx.CUSTID as CUSTID',
+                'trx.TRXDATE as TRXDATE',
+                DB::raw('COALESCE(trx.METODE, trx.NOREFF, "") as KETERANGAN'),
+                'trx.METODE as METODE',
+                'trx.DEBET as DEBET',
+                'trx.KREDIT as KREDIT',
+                'c.NOCUST as NOCUST',
+                'c.NUM2ND as NUM2ND',
+                'trx.NOREFF as NOREFF',
+                'c.NMCUST as NMCUST',
+                'c.CODE01 as CODE01',
+                'c.CODE02 as CODE02',
+                'c.DESC02 as DESC02',
+                'c.DESC03 as DESC03',
+            ]);
+    }
+
+    public static function tranHasColumn(string $column): bool
+    {
+        static $cache = [];
+
+        if (array_key_exists($column, $cache)) {
+            return $cache[$column];
+        }
+
+        try {
+            $cache[$column] = Schema::connection('DATA_MYSQL')->hasColumn('sccttran', $column);
+        } catch (\Throwable) {
+            $cache[$column] = false;
+        }
+
+        return $cache[$column];
+    }
+
+    /**
+     * Suffix stored function Pekanbaru: Open=1, Close=2.
+     * Client lama memakai 93/94 di nama function.
+     */
+    public static function paymentSuffix(string $reffBank): string
+    {
+        return self::normalize($reffBank) === self::CLOSE ? '2' : '1';
+    }
+
+    /**
+     * REFFBANK yang dipakai BuilderPaymentBill_MultiVAPerTagihan1/2
+     * saat cek/debet saldo (SUM KREDIT-DEBET WHERE REFFBANK='XX').
+     */
+    public static function paymentReffBank(string $reffBank): string
+    {
+        return 'XX';
     }
 
     public static function paymentFunction(string $reffBank): string
     {
-        $va = self::normalize($reffBank) ?? self::OPEN;
-
-        return "BuilderPaymentBill_MultiVAPerTagihan{$va}";
+        return 'BuilderPaymentBill_MultiVAPerTagihan' . self::paymentSuffix($reffBank);
     }
 
-    /** Nama lama sebelum rename (salah copas _BankBayar_). */
+    /** Nama lama: suffix 93/94. */
     public static function paymentFunctionLegacy(string $reffBank): string
     {
         $va = self::normalize($reffBank) ?? self::OPEN;
 
-        return "BuilderPaymentBill_BankBayar_MultiVAPerTagihan{$va}";
+        return "BuilderPaymentBill_MultiVAPerTagihan{$va}";
     }
 
     public static function cashPaymentFunction(): string
@@ -431,12 +531,10 @@ class MultiVa
         return 'CancelPaymentSaldo_MultiVAPerTagihan';
     }
 
-    /** Nama lama: CancelPaymentSaldo_MultiVAPerTagihan93 / 94 */
+    /** Nama lama: CancelPaymentSaldo_MultiVAPerTagihan1 / 2 */
     public static function cancelProcedureLegacy(string $reffBank): string
     {
-        $va = self::normalize($reffBank) ?? self::OPEN;
-
-        return "CancelPaymentSaldo_MultiVAPerTagihan{$va}";
+        return 'CancelPaymentSaldo_MultiVAPerTagihan' . self::paymentSuffix($reffBank);
     }
 
     public static function vaForBillName(?string $billName, mixed $existingVa = null): ?string

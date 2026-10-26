@@ -196,21 +196,6 @@ class DataTagihanController extends Controller
                 'exportable' => false,
                 'duplicate' => false,
             ],
-            [
-                'data' => 'kirim_wa',
-                'name' => 'Kirim WA',
-                'orderable' => false,
-                'dataVal' => false,
-                'columnType' => 'button',
-                'className' => 'text-center exclude-selection',
-                'excludeFromSelection' => true,
-                'button' => 'action',
-                'buttonText' => 'Kirim WA',
-                'buttonClass' => 'btn btn-sm btn-success btn-kirim-wa',
-                'buttonIcon' => 'ri-whatsapp-line me-2',
-                'exportable' => false,
-                'duplicate' => false,
-            ],
         ];
     }
 
@@ -239,7 +224,7 @@ class DataTagihanController extends Controller
             '',
             'Tagihan ' . trim((string) ($bill['BILLNM'] ?? '')),
             'No. Tagihan: ' . trim((string) ($bill['BILLCD'] ?: $bill['AA'] ?? '-')),
-            'Periode: ' . trim((string) ($bill['BILLAC'] ?? '-')),
+            'Periode: ' . $this->formatPeriodeLabel($bill['BILLAC'] ?? null),
             'Jumlah: Rp ' . number_format($jumlah, 0, ',', '.'),
         ];
 
@@ -283,7 +268,11 @@ class DataTagihanController extends Controller
             ->where('BILLAC', '!=', '')
             ->distinct()
             ->orderBy('BILLAC', 'desc')
-            ->pluck('BILLAC');
+            ->pluck('BILLAC')
+            ->map(fn ($value) => [
+                'value' => $value,
+                'label' => $this->formatPeriodeLabel($value),
+            ]);
         $data['sekolah'] = mst_sekolah::when($this->sekolah, function ($query) {
             $query->where(function ($q) {
                 $q->where("CODE01", $this->sekolah)
@@ -445,7 +434,6 @@ class DataTagihanController extends Controller
 
         $tagihan = scctbill::where('AA', $id)
             ->where('FSTSBolehBayar', '=', 1)
-            ->where('PAIDST', '=', 0)
             ->when($custId, fn ($q) => $q->where('CUSTID', $custId))
             ->first();
 
@@ -473,6 +461,26 @@ class DataTagihanController extends Controller
 
             return response()->json(['message' => 'Reversal berhasil!'], 200);
         } catch (\Throwable $e) {
+            try {
+                $billAm = (int) ($tagihan->BILLAM ?? 0);
+                DB::connection('DATA_MYSQL')->table('scctbill')
+                    ->where('AA', $tagihan->AA)
+                    ->where('CUSTID', $tagihan->CUSTID)
+                    ->update([
+                        'PAIDST' => 0,
+                        'PAIDDT' => null,
+                        'BILLPAID' => 0,
+                        'PAYMENTLEFT' => $billAm,
+                        'INSTALLMENT' => 0,
+                    ]);
+
+                Cache::increment(Str::slug($this->cacheKey) . '_cache_version');
+
+                return response()->json(['message' => 'Reversal berhasil!'], 200);
+            } catch (\Throwable) {
+                // tetap tampilkan error asal
+            }
+
             return response()->json([
                 'message' => 'Gagal memproses tagihan!',
                 'error' => $e->getMessage(),
@@ -792,26 +800,9 @@ class DataTagihanController extends Controller
                 ->orderBy('scctbill.AA', 'asc');
         } else {
             $recordsQuery
-                ->orderBy('scctbill.BILLAC')
-                ->orderByRaw("
-                    CASE
-                        WHEN scctbill.BILLNM LIKE '%JULI%' THEN 1
-                        WHEN scctbill.BILLNM LIKE '%AGUSTUS%' THEN 2
-                        WHEN scctbill.BILLNM LIKE '%SEPTEMBER%' THEN 3
-                        WHEN scctbill.BILLNM LIKE '%OKTOBER%' THEN 4
-                        WHEN scctbill.BILLNM LIKE '%NOVEMBER%' THEN 5
-                        WHEN scctbill.BILLNM LIKE '%DESEMBER%' THEN 6
-                        WHEN scctbill.BILLNM LIKE '%JANUARI%' THEN 7
-                        WHEN scctbill.BILLNM LIKE '%FEBRUARI%' THEN 8
-                        WHEN scctbill.BILLNM LIKE '%MARET%' THEN 9
-                        WHEN scctbill.BILLNM LIKE '%APRIL%' THEN 10
-                        WHEN scctbill.BILLNM LIKE '%MEI%' THEN 11
-                        WHEN scctbill.BILLNM LIKE '%JUNI%' THEN 12
-                        ELSE 999
-                    END
-                ")
-                ->orderByRaw('CAST(COALESCE(scctbill.FUrutan, 0) AS SIGNED) ASC')
-                ->orderBy('scctcust.nocust', 'asc');
+                ->orderBy('scctcust.nmcust', 'asc')
+                ->orderBy('scctcust.nocust', 'asc')
+                ->orderBy('scctbill.AA', 'asc');
         }
 
         $rows = $recordsQuery
@@ -854,7 +845,7 @@ class DataTagihanController extends Controller
                     'BILLAM' => $get('PAYMENTLEFT'),
                     'BILLPAID' => $get('BILLPAID'),
                     'PAYMENTLEFT' => $get('PAYMENTLEFT'),
-                    'BILLAC' => $get('BILLAC'),
+                    'BILLAC' => $this->formatPeriodeLabel($get('BILLAC')),
                     'BTA' => $get('BTA'),
                     'PAIDST' => $get('PAIDST'),
                     'INSTALLMENT' => (int) ($get('INSTALLMENT') ?? 0),
@@ -1266,5 +1257,29 @@ class DataTagihanController extends Controller
                 }
             }
         };
+    }
+
+    /** Tampilkan periode sebagai nama bulan, bukan angka 202610. */
+    private function formatPeriodeLabel(mixed $raw): string
+    {
+        $value = trim((string) $raw);
+        if ($value === '' || $value === '-') {
+            return '-';
+        }
+
+        $months = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+        ];
+
+        if (preg_match('/^(\d{4})[\/\-]?(\d{1,2})$/', $value, $match)) {
+            $month = (int) $match[2];
+            if (isset($months[$month])) {
+                return $months[$month] . ' ' . $match[1];
+            }
+        }
+
+        return $value;
     }
 }

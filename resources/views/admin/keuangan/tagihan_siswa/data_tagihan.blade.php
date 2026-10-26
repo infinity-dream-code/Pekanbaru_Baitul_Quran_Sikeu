@@ -150,7 +150,9 @@
                                     <option value="all">Semua</option>
                                     @isset($periode)
                                         @foreach($periode as $item)
-                                            <option value="{{$item}}">{{$item}}</option>
+                                            <option value="{{ is_array($item) ? ($item['value'] ?? '') : $item }}">
+                                                {{ is_array($item) ? ($item['label'] ?? $item['value'] ?? '') : $item }}
+                                            </option>
                                         @endforeach
                                     @else
                                         <option>data kosong</option>
@@ -538,7 +540,7 @@
             thead: true,
             tfoot: true,
             scrollX: true,
-            order: [[15, 'asc']],
+            order: [[5, 'asc']],
             paging: true,
             searching: true,
             fixedHeader: false,

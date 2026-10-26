@@ -5,14 +5,19 @@ namespace App\Imports\Keuangan\TagihanSiswa;
 use App\Models\scctcust;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 
-class ImportTagihanExcel implements ToCollection, WithHeadingRow
+class ImportTagihanExcel implements WithMultipleSheets, ToCollection, WithHeadingRow, SkipsEmptyRows
 {
-    /**
-    * @param Collection $collection
-    */
+    public function sheets(): array
+    {
+        return [
+            0 => $this,
+        ];
+    }
 
     public function collection(Collection $collection): void
     {
@@ -20,31 +25,43 @@ class ImportTagihanExcel implements ToCollection, WithHeadingRow
         $processedData = [];
 
         foreach ($collection as $row) {
-            if ($row->filter()->isEmpty()) continue;
-            $rowData = $row->toArray();
-            $rowData['status'] = 1;
-            $status_ket = null;
+            if ($row->filter()->isEmpty()) {
+                continue;
+            }
 
-            if (!isset($rowData['nis'])) {
+            $raw = $row->toArray();
+            $nis = trim((string) ($raw['nis'] ?? ''));
+            $nominalRaw = $raw['nominal'] ?? null;
+
+            if ($nis === '' && ($nominalRaw === null || $nominalRaw === '')) {
+                continue;
+            }
+
+            $rowData = [
+                'nis' => $nis !== '' ? $nis : null,
+                'nominal' => $nominalRaw,
+                'status' => 1,
+                'keterangan' => null,
+            ];
+            $statusKet = null;
+
+            if ($rowData['nis'] === null) {
                 $rowData['status'] = 0;
-                $status_ket = 'NIS tidak boleh kosong';
-            }else {
-                $rowData['nis'] = (string) $rowData['nis'];
+                $statusKet = 'NIS tidak boleh kosong';
+            } else {
                 $checkData = scctcust::where('NOCUST', $rowData['nis'])->first();
                 if (!$checkData) {
                     $rowData['status'] = 0;
-                    if (!empty($status_ket)) $status_ket .= ', ';
-                    $status_ket .= "NIS {$rowData['nis']} tidak ditemukan";
+                    $statusKet = "NIS {$rowData['nis']} tidak ditemukan";
                 }
             }
 
-            if (!isset($rowData['nominal'])) {
+            if ($rowData['nominal'] === null || $rowData['nominal'] === '') {
                 $rowData['status'] = 0;
-                if (!empty($status_ket)) $status_ket .= ', ';
-                $status_ket .= 'Nominal tidak boleh kosong';
+                $statusKet = $statusKet ? $statusKet . ', Nominal tidak boleh kosong' : 'Nominal tidak boleh kosong';
             }
 
-            $rowData['keterangan'] = $status_ket;
+            $rowData['keterangan'] = $statusKet;
             $processedData[] = $rowData;
         }
 

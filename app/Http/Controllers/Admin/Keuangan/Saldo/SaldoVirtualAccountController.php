@@ -121,6 +121,33 @@ class SaldoVirtualAccountController extends Controller
         return MultiVa::transQuery($this->reffBank);
     }
 
+    /** Riwayat per siswa: sccttran by CUSTID (view v_trans_saldo sering tanpa CUSTID / error). */
+    protected function custTransQuery(?scctcust $siswa)
+    {
+        $query = DB::connection('DATA_MYSQL')
+            ->table('sccttran')
+            ->where(function ($q) {
+                $q->whereNull('FIDBANK')
+                    ->orWhereRaw("TRIM(COALESCE(CAST(FIDBANK AS CHAR), '')) = ''")
+                    ->orWhereRaw("TRIM(COALESCE(CAST(FIDBANK AS CHAR), '')) != ?", [self::FIDBANK_MANUAL_CASH]);
+            })
+            ->select([
+                'TRXDATE',
+                DB::raw('COALESCE(METODE, NOREFF, "") as KETERANGAN'),
+                'METODE',
+                'DEBET',
+                'KREDIT',
+                'NOREFF',
+                'CUSTID',
+            ]);
+
+        if ($siswa) {
+            $query->where('CUSTID', $siswa->CUSTID);
+        }
+
+        return $query;
+    }
+
     protected function transListQuery()
     {
         $view = MultiVa::resolveExistingView([
@@ -183,11 +210,15 @@ class SaldoVirtualAccountController extends Controller
             return $query;
         }
 
-        if ($siswa->NOCUST) {
-            return $query->where($nocustCol, $siswa->NOCUST);
-        }
-
-        return $query->where($num2ndCol, $siswa->NUM2ND ?? '');
+        return $query->where(function ($q) use ($siswa, $nocustCol, $num2ndCol) {
+            $q->where('CUSTID', $siswa->CUSTID);
+            if (!blank($siswa->NOCUST) && $siswa->NOCUST !== '-') {
+                $q->orWhere($nocustCol, $siswa->NOCUST);
+            }
+            if (!blank($siswa->NUM2ND)) {
+                $q->orWhere($num2ndCol, $siswa->NUM2ND);
+            }
+        });
     }
 
     protected function formatNova(mixed $nis): string
@@ -243,9 +274,18 @@ class SaldoVirtualAccountController extends Controller
                 }
                 $data['siswa']->NOVA = $NOVA;
 
-                $trxQuery = $this->applySiswaToTrans($this->transQuery(), $data['siswa']);
-                $data['totalKredit'] = (int) (clone $trxQuery)->sum('KREDIT');
-                $data['totalDebet'] = (int) (clone $trxQuery)->sum('DEBET');
+                try {
+                    $trxQuery = $this->custTransQuery($data['siswa']);
+                    $data['totalKredit'] = (int) (clone $trxQuery)->sum('KREDIT');
+                    $data['totalDebet'] = (int) (clone $trxQuery)->sum('DEBET');
+                } catch (\Throwable $e) {
+                    Log::warning('saldo-va.show.trans_sum_failed', [
+                        'custid' => $id,
+                        'error' => $e->getMessage(),
+                    ]);
+                    $data['totalKredit'] = 0;
+                    $data['totalDebet'] = 0;
+                }
 //                $data['siswa']-> = $NOVA;
             } else {
                 throw new Exception('Siswa tidak ditemukan');
@@ -348,7 +388,7 @@ class SaldoVirtualAccountController extends Controller
     private function getCustTransactions(string|int $custId)
     {
         $siswa = scctcust::query()->where('CUSTID', $custId)->first();
-        $query = $this->applySiswaToTrans($this->transQuery(), $siswa);
+        $query = $this->custTransQuery($siswa);
 
         return $query->orderBy('TRXDATE', 'desc')
             ->get()
@@ -538,6 +578,26 @@ class SaldoVirtualAccountController extends Controller
 
     public function getDataTran(Request $request)
     {
+        try {
+            return $this->buildGetDataTranResponse($request);
+        } catch (\Throwable $e) {
+            Log::error('saldo-va.getDataTran.failed', [
+                'custid' => $request->input('CUSTID'),
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'draw' => (int) $request->get('draw'),
+                'recordsTotal' => 0,
+                'recordsFiltered' => 0,
+                'data' => [],
+                'message' => 'Gagal memuat riwayat transaksi.',
+            ], 200);
+        }
+    }
+
+    private function buildGetDataTranResponse(Request $request)
+    {
         $custid = $request->input('CUSTID');
         $siswa = $custid ? scctcust::query()->where('CUSTID', $custid)->first() : null;
 
@@ -568,19 +628,18 @@ class SaldoVirtualAccountController extends Controller
             'DEBET' => 'DEBET',
             'KREDIT' => 'KREDIT',
             'NOREFF' => 'NOREFF',
-            'NOCUST' => 'NOCUST',
             'no', '', null => 'TRXDATE',
             default => 'TRXDATE',
         };
 
-        $query = $this->applySiswaToTrans($this->transQuery(), $siswa);
+        $query = $this->custTransQuery($siswa);
 
         if (!blank($searchValue)) {
             $sanitizeSearch = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $searchValue);
             $query->where(function ($q) use ($sanitizeSearch) {
                 $q->where('KETERANGAN', 'like', '%' . $sanitizeSearch . '%')
                     ->orWhere('NOREFF', 'like', '%' . $sanitizeSearch . '%')
-                    ->orWhere('NOCUST', 'like', '%' . $sanitizeSearch . '%');
+                    ->orWhere('METODE', 'like', '%' . $sanitizeSearch . '%');
             });
         }
 
@@ -603,7 +662,7 @@ class SaldoVirtualAccountController extends Controller
         $totalKredit = 0;
         $totalDebet = 0;
         if ($siswa) {
-            $sumQuery = $this->applySiswaToTrans($this->transQuery(), $siswa);
+            $sumQuery = $this->custTransQuery($siswa);
             $totalKredit = (int) (clone $sumQuery)->sum('KREDIT');
             $totalDebet = (int) (clone $sumQuery)->sum('DEBET');
         }
@@ -680,6 +739,24 @@ class SaldoVirtualAccountController extends Controller
     }
 
     public function getDataDataTransaksi(Request $request)
+    {
+        try {
+            return $this->buildGetDataDataTransaksiResponse($request);
+        } catch (\Throwable $e) {
+            Log::error('saldo-va.data-transaksi.failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'draw' => (int) $request->get('draw'),
+                'recordsTotal' => 0,
+                'recordsFiltered' => 0,
+                'data' => [],
+            ], 200);
+        }
+    }
+
+    private function buildGetDataDataTransaksiResponse(Request $request)
     {
         $draw = (int) $request->get('draw');
         $start = (int) $request->get('start', 0);

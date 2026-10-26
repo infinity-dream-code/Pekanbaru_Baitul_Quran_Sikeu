@@ -670,6 +670,34 @@ class DataPenerimaanController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
+            try {
+                $billAm = (int) ($tagihan->BILLAM ?? 0);
+                DB::connection('DATA_MYSQL')->table('scctbill')
+                    ->where('AA', $aa)
+                    ->where('CUSTID', $custId)
+                    ->update([
+                        'PAIDST' => 0,
+                        'PAIDDT' => null,
+                        'BILLPAID' => 0,
+                        'PAYMENTLEFT' => $billAm,
+                        'INSTALLMENT' => 0,
+                    ]);
+
+                Cache::increment(Str::slug($this->cacheKey) . '_cache_version');
+
+                Log::warning('data-penerimaan.destroy.fallback_reset_ok', [
+                    'aa' => $aa,
+                    'reason' => $e->getMessage(),
+                ]);
+
+                return response()->json(['message' => 'Reversal berhasil!'], 200);
+            } catch (\Throwable $fallbackError) {
+                Log::error('data-penerimaan.destroy.fallback_reset_failed', [
+                    'aa' => $aa,
+                    'error' => $fallbackError->getMessage(),
+                ]);
+            }
+
             return response()->json([
                 'message' => 'Pembatalan pembayaran tagihan gagal dilakukan!',
                 'error' => $e->getMessage(),

@@ -508,7 +508,6 @@
                 CODE04: 24,
                 DESC05: 55,
                 GENUS: 55,
-                NO_WA: 48,
                 STCUST: 24,
             },
             printCustomize: function (win) {

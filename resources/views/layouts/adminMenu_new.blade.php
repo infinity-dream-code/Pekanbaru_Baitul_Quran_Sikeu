@@ -3,7 +3,8 @@
         <a href="{{route('admin.index')}}" class="app-brand-link">
               <span class="app-brand-logo demo">
                 <span style="color: var(--bs-primary)">
-                  <img width="50" height="50" src="{{asset(config('app.logo'))}}" alt="logo">
+                  <img src="{{asset(config('app.logo'))}}" alt="logo"
+                       style="width:auto;height:40px;max-width:140px;object-fit:contain;object-position:left center;">
                 </span>
               </span>
             <span class="app-brand-text demo menu-text fw-bold ms-2">{{ config('app.name') }}</span>

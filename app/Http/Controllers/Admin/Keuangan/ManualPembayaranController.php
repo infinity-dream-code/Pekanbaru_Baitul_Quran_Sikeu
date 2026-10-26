@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use RuntimeException;
 use Throwable;
 use function Laravel\Prompts\error;
 use function PHPUnit\Framework\throwException;
@@ -530,6 +531,14 @@ class ManualPembayaranController extends Controller
                 'tagihan_terbayar' => count($tagihanForPrint),
             ]);
             return response()->json(['message' => $message], 200);
+        } catch (RuntimeException $e) {
+            $this->rollbackManualPaymentTransactions();
+            Log::warning('manual-pembayaran.store.builder_rejected', [
+                'siswa' => $request->input('siswa'),
+                'bank' => $request->input('bank'),
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json(['message' => $e->getMessage()], 422);
         } catch (QueryException $e) {
             $this->rollbackManualPaymentTransactions();
             Log::error('manual-pembayaran.store.query_exception', [
@@ -548,7 +557,9 @@ class ManualPembayaranController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
             return response()->json([
-                'message' => config('app.debug') ? ('Tagihan gagal dibayar: ' . $e->getMessage()) : 'Tagihan gagal dibayar'
+                'message' => $e->getMessage() !== ''
+                    ? $e->getMessage()
+                    : 'Tagihan gagal dibayar',
             ], 422);
         }
     }

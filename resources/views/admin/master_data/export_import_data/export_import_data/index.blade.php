@@ -41,11 +41,18 @@
                 <h5 class="mb-0 me-2">{{($dataTitle??$mainTitle)}}</h5>
             </div>
             <div class="card-header-elements ms-auto">
-                <button type="button" class="btn btn-whatsapp" data-bs-toggle="modal"
-                        data-bs-target="#modal-import" title="Buat Data">
-                    <span class="ri-file-excel-2-line me-2"></span>
-                    Import Data Siswa
-                </button>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-whatsapp" data-bs-toggle="modal"
+                            data-bs-target="#modal-import" title="Import Excel">
+                        <span class="ri-file-excel-2-line me-2"></span>
+                        Import Data Siswa
+                    </button>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal"
+                            data-bs-target="#modal-tambah-siswa" title="Tambah Siswa">
+                        <span class="ri-user-add-line me-2"></span>
+                        Tambah Siswa
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -102,11 +109,12 @@
                         <ul class="list-group list-group-timeline mb-3">
                             <li class="list-group-item list-group-timeline-danger">File harus berformat <span class="fw-bold">XLS/XLSX</span>.</li>
                             <li class="list-group-item list-group-timeline-danger">Ukuran file tidak boleh lebih dari <span class="fw-bold">1024KB/1MB</span>.</li>
-                            <li class="list-group-item list-group-timeline-danger">Kolom wajib: <span class="fw-bold">NIS, Nama, Unit, Kelas, Kelompok, Angkatan</span>.</li>
+                            <li class="list-group-item list-group-timeline-danger">File punya <span class="fw-bold">2 sheet: Data</span> (diisi) dan <span class="fw-bold">Keterangan</span> (petunjuk).</li>
+                            <li class="list-group-item list-group-timeline-danger">Kolom wajib: <span class="fw-bold">Nama, Unit, Kelas, Kelompok, Angkatan</span> plus salah satu <span class="fw-bold">NIS / NODAFTAR</span>.</li>
                             <li class="list-group-item list-group-timeline-danger">Kolom opsional: <span class="fw-bold">Gender, Alamat, Ortu</span> (bukan Ayah/Ibu).</li>
                             <li class="list-group-item list-group-timeline-danger">Contoh file yang dapat diproses untuk import:
                                 <a class="btn btn-sm btn-outline-primary fw-bolder"
-                                   href="{{asset('TEMPLATE MENU UPLOAD DATA SISWA.xlsx')}}"
+                                   href="{{asset('TEMPLATE MENU UPLOAD DATA SISWA.xlsx')}}?v=20261026-2sheet"
                                    download>
                                     <i class="ri ri-file-excel-line me-2"></i>Contoh File
                                 </a>
