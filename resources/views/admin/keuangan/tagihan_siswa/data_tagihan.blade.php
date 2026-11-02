@@ -540,7 +540,7 @@
             thead: true,
             tfoot: true,
             scrollX: true,
-            order: [[5, 'asc']],
+            order: [],
             paging: true,
             searching: true,
             fixedHeader: false,

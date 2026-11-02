@@ -782,7 +782,13 @@ class DataTagihanController extends Controller
         $rowperpage = $rowperpage == "poll" ? $totalRecords : $rowperpage;
         $recordsQuery = clone $query;
 
-        if ($userOrdered) {
+        $recordsQuery
+            ->orderByRaw("CASE WHEN scctcust.nmcust IS NULL OR TRIM(CAST(scctcust.nmcust AS CHAR)) IN ('', '-') THEN 1 ELSE 0 END ASC")
+            ->orderByRaw('LOWER(TRIM(CAST(scctcust.nmcust AS CHAR))) ASC')
+            ->orderBy('scctcust.CUSTID', 'asc')
+            ->orderBy('scctcust.nocust', 'asc');
+
+        if ($userOrdered && !in_array($columnName, ['scctcust.nmcust', 'scctcust.NMCUST'], true)) {
             $dir = $columnSortOrder === 'desc' ? 'DESC' : 'ASC';
             if ($columnName === 'scctbill.FUrutan') {
                 $recordsQuery->orderByRaw('CAST(COALESCE(scctbill.FUrutan, 0) AS SIGNED) ' . $dir);
@@ -795,17 +801,11 @@ class DataTagihanController extends Controller
             } else {
                 $recordsQuery->orderBy($columnName, $columnSortOrder);
             }
-            $recordsQuery
-                ->orderBy('scctcust.nocust', 'asc')
-                ->orderBy('scctbill.AA', 'asc');
         } else {
-            $recordsQuery
-                ->orderByRaw("CASE WHEN scctcust.nmcust IS NULL OR TRIM(CAST(scctcust.nmcust AS CHAR)) IN ('', '-') THEN 1 ELSE 0 END ASC")
-                ->orderByRaw('LOWER(TRIM(CAST(scctcust.nmcust AS CHAR))) ASC')
-                ->orderBy('scctcust.nocust', 'asc')
-                ->orderByRaw('CAST(COALESCE(scctbill.FUrutan, 0) AS SIGNED) ASC')
-                ->orderBy('scctbill.AA', 'asc');
+            $recordsQuery->orderByRaw('CAST(COALESCE(scctbill.FUrutan, 0) AS SIGNED) ASC');
         }
+
+        $recordsQuery->orderBy('scctbill.AA', 'asc');
 
         $rows = $recordsQuery
             ->skip($start)
