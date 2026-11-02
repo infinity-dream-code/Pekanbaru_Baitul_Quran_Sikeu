@@ -22,19 +22,16 @@ class SccttranController extends Controller
     {
         $metodeColumn = $tablePrefix . 'METODE';
         $fidColumn = $tablePrefix . 'FIDBANK';
+        $kreditColumn = $tablePrefix . 'KREDIT';
         $topup = ['TOP UP', 'TOP-UP', 'TOPUP'];
-        $payment = ['FROM INVOICE', 'FROM TELLER', 'PAYMENT', 'FROM VA'];
-        $metodes = match (strtolower(trim((string) $jenis))) {
-            'payment' => $payment,
-            'topup', 'top up' => $topup,
-            default => array_merge($topup, $payment),
-        };
 
-        $query->where(function ($q) use ($metodeColumn, $metodes) {
-            foreach ($metodes as $metode) {
+        $query->where(function ($q) use ($metodeColumn, $topup) {
+            foreach ($topup as $metode) {
                 $q->orWhereRaw("UPPER(TRIM(COALESCE({$metodeColumn}, ''))) = ?", [strtoupper($metode)]);
             }
         });
+
+        $query->whereRaw("CAST(COALESCE({$kreditColumn}, 0) AS SIGNED) > 0");
 
         $query->where(function ($q) use ($fidColumn) {
             $q->whereNull($fidColumn)
@@ -103,7 +100,6 @@ class SccttranController extends Controller
         }
         $data['jenisOptions'] = [
             'topup' => 'TOP UP',
-            'payment' => 'Payment',
         ];
 
         return view('admin.keuangan.saldo.sccttran.index', $data);
@@ -153,7 +149,7 @@ class SccttranController extends Controller
             if (!$requestedColumn || $requestedColumn === 'no') {
                 $columnName = $defaultColumn;
             } elseif ($requestedColumn === 'NOMINAL') {
-                $columnName = DB::raw("CASE WHEN UPPER(TRIM(COALESCE(sccttran.METODE, ''))) IN ('TOP UP', 'TOP-UP', 'TOPUP') THEN COALESCE(sccttran.KREDIT, 0) ELSE COALESCE(sccttran.DEBET, 0) END");
+                $columnName = DB::raw('COALESCE(sccttran.KREDIT, 0)');
             } elseif ($requestedColumn === 'KODE_PRODUK') {
                 $columnName = 'sccttran.REFFBANK';
             } elseif (!str_contains((string) $requestedColumn, '.')) {
@@ -320,9 +316,7 @@ class SccttranController extends Controller
 
         $totalRecords = $this->topUpVaScope(sccttran::query())->count();
         $totalRecordswithFilter = (clone $query)->count();
-        $totalNominal = (int) (clone $query)->sum(DB::raw(
-            "CASE WHEN UPPER(TRIM(COALESCE(sccttran.METODE, ''))) IN ('TOP UP', 'TOP-UP', 'TOPUP') THEN COALESCE(sccttran.KREDIT, 0) ELSE COALESCE(sccttran.DEBET, 0) END"
-        ));
+        $totalNominal = (int) (clone $query)->sum(DB::raw('COALESCE(sccttran.KREDIT, 0)'));
 
         $records = (clone $query)->orderBy($columnName, $columnSortOrder)
             ->select($select)
@@ -336,13 +330,8 @@ class SccttranController extends Controller
                     ? MultiVa::formatNoVa($nis, $va)
                     : MultiVa::formatNoVaBoth($nis);
                 $item->KODE_PRODUK = $va ? MultiVa::optionLabel($va) : '-';
-                $metode = strtoupper(trim((string) ($item->METODE ?? '')));
-                $item->METODE = in_array($metode, ['FROM INVOICE', 'FROM TELLER', 'PAYMENT', 'FROM VA'], true)
-                    ? 'Payment'
-                    : (in_array($metode, ['TOP UP', 'TOP-UP', 'TOPUP'], true) ? 'TOP UP' : ($item->METODE ?: '-'));
-                $item->NOMINAL = in_array($metode, ['TOP UP', 'TOP-UP', 'TOPUP'], true)
-                    ? (int) ($item->KREDIT ?? 0)
-                    : (int) (($item->DEBET ?? 0) > 0 ? $item->DEBET : ($item->KREDIT ?? 0));
+                $item->METODE = 'TOP UP';
+                $item->NOMINAL = (int) ($item->KREDIT ?? 0);
                 unset($item->DEBET, $item->KREDIT);
 
                 return $item;

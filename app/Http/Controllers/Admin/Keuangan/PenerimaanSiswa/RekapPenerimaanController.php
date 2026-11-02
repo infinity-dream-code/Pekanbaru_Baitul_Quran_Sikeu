@@ -96,18 +96,26 @@ class RekapPenerimaanController extends Controller
 
     private function paymentBaseQuery()
     {
-        return sccttran::query()
+        $query = sccttran::query()
             ->leftJoin('scctbill', function ($join) {
                 $join->on('scctbill.AA', '=', 'sccttran.BILLID')
                     ->on('scctbill.CUSTID', '=', 'sccttran.CUSTID');
             })
             ->leftJoin('scctcust', 'scctcust.CUSTID', '=', 'sccttran.CUSTID')
-            ->where(function ($q) {
+            ->whereRaw("CAST(COALESCE(sccttran.DEBET, 0) AS SIGNED) > 0")
+            ->whereRaw("TRIM(COALESCE(CAST(sccttran.BILLID AS CHAR), '')) != ''")
+            ->whereRaw("UPPER(TRIM(COALESCE(sccttran.METODE, ''))) IN ('FROM TELLER', 'CASH', 'FROM INVOICE', 'PAYMENT', 'FROM VA')")
+            ->whereRaw("UPPER(TRIM(COALESCE(sccttran.METODE, ''))) NOT IN ('TOP UP', 'REVERSAL', 'JURNAL SALDO')");
+
+        if (\App\Support\MultiVa::tranHasColumn('isreversal')) {
+            $query->where(function ($q) {
                 $q->whereNull('sccttran.isreversal')
                     ->orWhere('sccttran.isreversal', 0)
                     ->orWhere('sccttran.isreversal', '0');
-            })
-            ->whereRaw("UPPER(TRIM(COALESCE(sccttran.METODE, ''))) <> 'TOP UP'");
+            });
+        }
+
+        return $query;
     }
 
     private function resolveMetodeLabel(object $item, array $metodeBayarMap): string
@@ -502,10 +510,12 @@ class RekapPenerimaanController extends Controller
                     $filterQuery = function ($query) use ($filters) {
                         foreach ($filters as $filter) {
                             if (($filter[0] ?? null) === '_sekolah') {
-                                $value = $filter[2] ?? null;
-                                if (!blank($value)) {
+                                $value = trim((string) ($filter[2] ?? ''));
+                                if ($value !== '') {
                                     $query->where(function ($q) use ($value) {
-                                        $q->whereRaw('TRIM(CAST(scctcust.CODE02 AS CHAR)) = ?', [trim((string) $value)]);
+                                        $q->whereRaw('TRIM(CAST(scctcust.CODE01 AS CHAR)) = ?', [$value])
+                                            ->orWhereRaw('TRIM(CAST(scctcust.CODE02 AS CHAR)) = ?', [$value])
+                                            ->orWhereRaw('TRIM(CAST(scctcust.DESC01 AS CHAR)) = ?', [$value]);
                                     });
                                 }
                                 continue;
@@ -621,7 +631,7 @@ class RekapPenerimaanController extends Controller
 
             $unitCache = blank($this->sekolah) ? 'all' : md5((string) $this->sekolah);
             $totalRecords = Cache::remember(
-                "{$this->cacheKey}:total_all_data:v4:{$unitCache}",
+                "{$this->cacheKey}:total_all_data:v5:{$unitCache}",
                 now()->addMinutes(10),
                 function () {
                     $baseQuery = $this->paymentBaseQuery();

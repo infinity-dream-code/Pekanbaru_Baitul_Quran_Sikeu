@@ -278,6 +278,13 @@ class DataPenerimaanController extends Controller
                             $filters[] = ['scctcust.NOCUST', 'like', '%' . $sanitized . '%'];
                         }
                         break;
+                    case 'scctcust.CODE01':
+                    case 'scctcust.CODE02':
+                        $unit = trim((string) $val);
+                        if ($unit !== '' && strtolower($unit) !== 'all') {
+                            $filters[] = ['_sekolah_unit', '=', $unit];
+                        }
+                        break;
                     case 'sccttran.FIDBANK':
                         if ((string) $val === MetodeBayarHelper::ANDROID_FIDBANK) {
                             $androidBankFilter = 'only';
@@ -300,6 +307,17 @@ class DataPenerimaanController extends Controller
             if (!empty($filters)) {
                 $filterQuery = function ($query) use ($filters) {
                     foreach ($filters as $filter) {
+                        if (($filter[0] ?? null) === '_sekolah_unit') {
+                            $value = trim((string) ($filter[2] ?? ''));
+                            if ($value !== '') {
+                                $query->where(function ($q) use ($value) {
+                                    $q->whereRaw('TRIM(CAST(scctcust.CODE01 AS CHAR)) = ?', [$value])
+                                        ->orWhereRaw('TRIM(CAST(scctcust.CODE02 AS CHAR)) = ?', [$value])
+                                        ->orWhereRaw('TRIM(CAST(scctcust.DESC01 AS CHAR)) = ?', [$value]);
+                                });
+                            }
+                            continue;
+                        }
                         if (count($filter) === 3) {
                             if (($filter[1] ?? null) === 'in' && is_array($filter[2] ?? null)) {
                                 $query->whereIn($filter[0], $filter[2]);
@@ -599,8 +617,19 @@ class DataPenerimaanController extends Controller
     {
         return scctbill::query()
             ->leftJoin('scctcust', 'scctcust.CUSTID', '=', 'scctbill.CUSTID')
-            ->whereIn('scctbill.PAIDST', [1, '1'])
-            ->where('scctbill.FSTSBolehBayar', 1);
+            ->where('scctbill.FSTSBolehBayar', 1)
+            ->where(function ($q) {
+                $q->whereIn('scctbill.PAIDST', [1, '1'])
+                    ->orWhereRaw(
+                        'CAST(COALESCE(scctbill.BILLPAID, 0) AS SIGNED) > 0
+                         AND CAST(COALESCE(scctbill.BILLPAID, 0) AS SIGNED)
+                             >= CAST(COALESCE(scctbill.BILLAM, 0) AS SIGNED)'
+                    )
+                    ->orWhereRaw(
+                        'CAST(COALESCE(scctbill.BILLPAID, 0) AS SIGNED) > 0
+                         AND CAST(COALESCE(scctbill.PAYMENTLEFT, 0) AS SIGNED) <= 0'
+                    );
+            });
     }
 
     private function resolveOrderColumn(string $column): string

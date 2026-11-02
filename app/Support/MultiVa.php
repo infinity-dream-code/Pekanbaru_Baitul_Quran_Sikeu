@@ -340,8 +340,7 @@ class MultiVa
     }
 
     /**
-     * Semua siswa (scctcust) + saldo dari view.
-     * View v_saldo_va di client ini hanya berisi yang pernah transfer.
+     * Hanya siswa yang pernah transfer (ada di view saldo / TOP UP).
      */
     private static function saldoQueryFromView(string $view)
     {
@@ -366,9 +365,23 @@ class MultiVa
             return self::fallbackSaldoQuery();
         }
 
-        return $conn->table('scctcust')
-            ->leftJoin($view . ' as vsaldo', 'vsaldo.' . $joinCol, '=', 'scctcust.' . $joinCol)
-            ->select($select);
+        return self::onlyTransferredStudents(
+            $conn->table('scctcust')
+                ->leftJoin($view . ' as vsaldo', 'vsaldo.' . $joinCol, '=', 'scctcust.' . $joinCol)
+                ->select($select)
+        );
+    }
+
+    /** Siswa yang pernah TOP UP (transfer VA), termasuk saldo 0 setelah terpakai. */
+    private static function onlyTransferredStudents($query)
+    {
+        return $query->whereExists(function ($q) {
+            $q->selectRaw('1')
+                ->from('sccttran')
+                ->whereColumn('sccttran.CUSTID', 'scctcust.CUSTID')
+                ->whereRaw("UPPER(TRIM(COALESCE(sccttran.METODE, ''))) IN ('TOP UP', 'TOP-UP', 'TOPUP')")
+                ->whereRaw('CAST(COALESCE(sccttran.KREDIT, 0) AS SIGNED) > 0');
+        });
     }
 
     /** v_saldo_va Pekanbaru: NOCUST + SALDO, tanpa CUSTID. */
@@ -431,23 +444,25 @@ class MultiVa
             })
             ->groupBy('CUSTID');
 
-        return $conn->table('scctcust')
-            ->leftJoinSub($agg, 'trx', function ($join) {
-                $join->on('trx.CUSTID', '=', 'scctcust.CUSTID');
-            })
-            ->select([
-                'scctcust.CUSTID as CUSTID',
-                'scctcust.NOCUST as NOCUST',
-                'scctcust.NMCUST as NMCUST',
-                'scctcust.CODE01 as CODE01',
-                'scctcust.CODE02 as CODE02',
-                'scctcust.CODE03 as CODE03',
-                'scctcust.DESC02 as DESC02',
-                'scctcust.DESC03 as DESC03',
-                'scctcust.DESC04 as DESC04',
-                'scctcust.NUM2ND as NUM2ND',
-                DB::raw('COALESCE(trx.SALDO, 0) AS SALDO'),
-            ]);
+        return self::onlyTransferredStudents(
+            $conn->table('scctcust')
+                ->joinSub($agg, 'trx', function ($join) {
+                    $join->on('trx.CUSTID', '=', 'scctcust.CUSTID');
+                })
+                ->select([
+                    'scctcust.CUSTID as CUSTID',
+                    'scctcust.NOCUST as NOCUST',
+                    'scctcust.NMCUST as NMCUST',
+                    'scctcust.CODE01 as CODE01',
+                    'scctcust.CODE02 as CODE02',
+                    'scctcust.CODE03 as CODE03',
+                    'scctcust.DESC02 as DESC02',
+                    'scctcust.DESC03 as DESC03',
+                    'scctcust.DESC04 as DESC04',
+                    'scctcust.NUM2ND as NUM2ND',
+                    DB::raw('COALESCE(trx.SALDO, 0) AS SALDO'),
+                ])
+        );
     }
 
     public static function fallbackTransQuery()

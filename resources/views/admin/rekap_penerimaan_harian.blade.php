@@ -254,17 +254,22 @@
         };
 
         const instansi = {
-            nama_instansi: "{{ config('app.nama_instansi') ?? ''}}",
-            nama_sub_1: "{{ config('app.nama_sub_instansi_1') ?? ''}}",
-            nama_sub_2: "{{ config('app.nama_sub_instansi_2') ?? ''}}",
-            akreditasi: "{{ config('app.akreditasi') ?? ''}}",
-            alamat: "{{ config('app.alamat') ?? ''}}",
+            nama_instansi: {!! json_encode(html_entity_decode((string) (config('app.nama_instansi') ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')) !!},
+            nama_sub_1: {!! json_encode(html_entity_decode((string) (config('app.nama_sub_instansi_1') ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')) !!},
+            nama_sub_2: {!! json_encode(html_entity_decode((string) (config('app.nama_sub_instansi_2') ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')) !!},
+            akreditasi: {!! json_encode(html_entity_decode((string) (config('app.akreditasi') ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')) !!},
+            alamat: {!! json_encode(html_entity_decode((string) (config('app.alamat') ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')) !!},
             kontak: {
-                telepon: "{{ config('app.telepon') ?? ''}}",
-                email: "{{ config('app.email') ?? ''}}",
-                website: "{{ config('app.website') ?? ''}}"
+                telepon: {!! json_encode(html_entity_decode((string) (config('app.telepon') ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')) !!},
+                email: {!! json_encode(html_entity_decode((string) (config('app.email') ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')) !!},
+                website: {!! json_encode(html_entity_decode((string) (config('app.website') ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')) !!}
             }
         };
+        (function (target) {
+            const decode = (value) => { const el = document.createElement('textarea'); el.innerHTML = String(value ?? ''); return el.value; };
+            ['nama_instansi', 'nama_sub_1', 'nama_sub_2', 'akreditasi', 'alamat'].forEach((key) => { if (typeof target[key] === 'string') target[key] = decode(target[key]); });
+            if (target.kontak) Object.keys(target.kontak).forEach((key) => { if (typeof target.kontak[key] === 'string') target.kontak[key] = decode(target.kontak[key]); });
+        })(instansi);
         const headerLogo = "{{ base64_encode(file_get_contents(public_path(config('app.logo')))) }}";
         const userName = "KASIR";
         const domisili = "{{ config('app.domisili') }}";

@@ -7,7 +7,6 @@
         $nova = $hasNis
             ? \App\Support\MultiVa::formatNoVaFromBills($nis, $tagihans ?? [])
             : \App\Support\MultiVa::formatNoVaFromBills($siswa->NUM2ND ?? '', $tagihans ?? []);
-        $ortu = $siswa->GENUS ?? '-';
         $total = collect($tagihans ?? [])->sum(fn ($item) => (int) ($item->NOMINAL_BAYAR ?? $item->BILLAM ?? 0));
         $biayaLayanan = (int) ($biayaLayanan ?? 0);
         $grandTotal = $total + $biayaLayanan;
@@ -33,8 +32,8 @@
         <tr>
             <td class="border-right-0">Nama Siswa</td>
             <td class="border-left-0">: <strong>{{ $siswa->NMCUST ?? '' }}</strong></td>
-            <td class="border-right-0">Orang Tua</td>
-            <td class="border-left-0">: <strong>{{ $ortu }}</strong></td>
+            <td class="border-right-0"></td>
+            <td class="border-left-0"></td>
         </tr>
     </table>
     <table width="100%" class="table-border main-table" style="margin-top: 12px;">

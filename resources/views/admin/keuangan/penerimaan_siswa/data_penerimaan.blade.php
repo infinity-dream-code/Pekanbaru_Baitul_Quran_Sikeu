@@ -395,7 +395,7 @@
 
     {{--    <script src="{{asset('main/libs/select2/select2.full.min.js')}}"></script>--}}
     <script src="{{asset('main/libs/datatables-bs5/datatables-bootstrap5.js')}}"></script>
-    <script src="{{asset('js/datatableCustom/Datatable-0-4.js')}}?v=20261010-retry500"></script>
+    <script src="{{asset('js/datatableCustom/Datatable-0-4.js')}}?v=20261102-tgl-indo"></script>
     <script src="{{asset('main/libs/moment/moment.js')}}"></script>
     <script src="{{asset('main/libs/bootstrap-datepicker/bootstrap-datepicker.js')}}"></script>
 
@@ -884,18 +884,33 @@
                 periodeMulai.datepicker('setEndDate', e.date);
             });
 
-            const instansi = {
-                nama_instansi: "{{ config('app.nama_instansi') }}",
-                nama_sub_1: "{{ config('app.nama_sub_instansi_1') }}",
-                nama_sub_2: "{{ config('app.nama_sub_instansi_2') }}",
-                akreditasi: "{{ config('app.akreditasi') }}",
-                alamat: "{{ config('app.alamat') }}",
-                kontak: {
-                    telepon: "{{ config('app.telepon') }}",
-                    email: "{{ config('app.email') }}",
-                    website: "{{ config('app.website') }}"
+            const instansi = {!! json_encode([
+                'nama_instansi' => html_entity_decode((string) (config('app.nama_instansi') ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+                'nama_sub_1' => html_entity_decode((string) (config('app.nama_sub_instansi_1') ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+                'nama_sub_2' => html_entity_decode((string) (config('app.nama_sub_instansi_2') ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+                'akreditasi' => html_entity_decode((string) (config('app.akreditasi') ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+                'alamat' => html_entity_decode((string) (config('app.alamat') ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+                'kontak' => [
+                    'telepon' => html_entity_decode((string) (config('app.telepon') ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+                    'email' => html_entity_decode((string) (config('app.email') ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+                    'website' => html_entity_decode((string) (config('app.website') ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+                ],
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!};
+            (function decodeInstansiPdf(target) {
+                const decode = (value) => {
+                    const el = document.createElement('textarea');
+                    el.innerHTML = String(value ?? '');
+                    return el.value;
+                };
+                ['nama_instansi', 'nama_sub_1', 'nama_sub_2', 'akreditasi', 'alamat'].forEach((key) => {
+                    if (typeof target[key] === 'string') target[key] = decode(target[key]);
+                });
+                if (target.kontak) {
+                    Object.keys(target.kontak).forEach((key) => {
+                        if (typeof target.kontak[key] === 'string') target.kontak[key] = decode(target.kontak[key]);
+                    });
                 }
-            };
+            })(instansi);
             const headerLogo = "{{ base64_encode(file_get_contents(public_path(config('app.logo')))) }}";
             const tandaTangan = @json($tanda_tangan);
             const userName = "{{ Auth::user()->name }}";
@@ -1284,32 +1299,6 @@
 
                 loadingAlert('Membuat kuitansi...');
 
-                const billsPayload = data.map(item => ({
-                    aa: item.item_id ?? item.AA,
-                    custid: item.CUSTID,
-                    billnm: item.BILLNM,
-                    bill_transno: item.TRANSNO ?? item.BILL_TRANSNO ?? '',
-                }));
-
-                let paymentLogs = [];
-                try {
-                    const response = await fetch('{{ route('admin.keuangan.penerimaan-siswa.data-penerimaan.get-trans-logs-bulk') }}', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': csrfToken,
-                        },
-                        body: JSON.stringify({bills: billsPayload}),
-                    });
-                    const result = await response.json().catch(() => ({}));
-                    if (response.ok) {
-                        paymentLogs = Array.isArray(result.logs) ? result.logs : [];
-                    }
-                } catch (e) {
-                    console.error('Gagal ambil rincian pembayaran:', e);
-                }
-
                 let siswa = data[0];
                 let nocust = siswa.nocust === null || siswa.nocust === '' || siswa.nocust === '-' || !siswa.nocust ? false : siswa.nocust;
                 const uniqueMetode = [...new Set(data.map(item => String(item.FIDBANK ?? '')))].filter(Boolean);
@@ -1320,8 +1309,7 @@
                 const mainTable = [
                     [(nocust ? 'NIS ' : 'No. Pendaftaran'), ': ' + (nocust ? nocust : siswa.NUM2ND), 'Unit', ': ' + siswa.CODE02],
                     [(nocust ? 'No. VA ' : '-'), ': ' + (nocust ? showVA(nocust, data.tagihans || []) : ''), 'Kelas', ': ' + (siswa.DESC02 ?? '') + ' ' + (siswa.DESC03 ?? '')],
-                    ['Nama ', ': ' + siswa.nmcust, 'Ayah', ': ' + (siswa.GENUS ?? '-')],
-                    ['Metode Bayar', ': ' + metodeLabel, 'Ibu', ': ' + (siswa.GENUS1 ?? '')],
+                    ['Nama ', ': ' + siswa.nmcust, 'Metode Bayar', ': ' + metodeLabel],
                 ]
 
                 let content = [];
@@ -1406,65 +1394,6 @@
                     margin: [0, 0, 0, 10],
                     fontSize: 12
                 });
-
-                if (paymentLogs.length) {
-                    content.push({
-                        text: 'Rincian Pembayaran',
-                        bold: true,
-                        fontSize: 12,
-                        margin: [0, 8, 0, 4],
-                    });
-
-                    const rincianBody = [];
-                    rincianBody.push(
-                        ['#', 'Nama Tagihan', 'Tanggal', 'Metode', 'Debet', 'Kredit', 'Bank', 'No Ref', 'Trans No']
-                            .map(h => ({text: h, style: 'tableHeader'})),
-                    );
-
-                    let totalDebet = 0;
-                    let totalKredit = 0;
-
-                    paymentLogs.forEach((log, index) => {
-                        const debet = Number(log.debet ?? 0);
-                        const kredit = Number(log.kredit ?? 0);
-                        totalDebet += debet;
-                        totalKredit += kredit;
-
-                        rincianBody.push([
-                            {text: index + 1, alignment: 'center'},
-                            {text: log.billnm ?? '-', alignment: 'left'},
-                            {text: log.trxdate ?? '-', alignment: 'left'},
-                            {text: log.metode ?? '-', alignment: 'left'},
-                            {text: debet > 0 ? formatRupiah(debet) : '-', alignment: 'right'},
-                            {text: kredit > 0 ? formatRupiah(kredit) : '-', alignment: 'right'},
-                            {text: formatMetodePembayaran(log.fidbank ?? '', log.noreff ?? ''), alignment: 'left'},
-                            {text: log.noreff ?? '-', alignment: 'left'},
-                            {text: log.transno ?? '-', alignment: 'left'},
-                        ]);
-                    });
-
-                    rincianBody.push([
-                        {colSpan: 4, text: 'Total Rincian', alignment: 'right', style: 'tableHeader'},
-                        {}, {}, {},
-                        {text: formatRupiah(totalDebet), alignment: 'right'},
-                        {text: formatRupiah(totalKredit), alignment: 'right'},
-                        {}, {}, {},
-                    ]);
-
-                    content.push({
-                        table: {
-                            widths: ['3%', '16%', '14%', '12%', '10%', '10%', '12%', '10%', '13%'],
-                            body: rincianBody,
-                        },
-                        layout: {
-                            fillColor: (rowIndex) => rowIndex === 0 ? '#ededed' : null,
-                            hLineWidth: () => 0.5,
-                            vLineWidth: () => 0.5
-                        },
-                        margin: [0, 0, 0, 10],
-                        fontSize: 9
-                    });
-                }
 
                 Swal.close();
                 generatePdf('KUITANSI', content, siswa.CODE02);
@@ -1562,11 +1491,7 @@
                             text: h,
                             border: [false, false, false, false]
                         })),
-                        ['Nama ', ': ' + siswa.NMCUST,'Ayah', ': ' + (siswa.GENUS ?? '-')].map(h => ({
-                            text: h,
-                            border: [false, false, false, false]
-                        })),
-                        ['', ' ',  'Ibu', ': ' + (siswa.GENUS1 ?? '')].map(h => ({
+                        ['Nama ', ': ' + siswa.NMCUST, '', ''].map(h => ({
                             text: h,
                             border: [false, false, false, false]
                         })),

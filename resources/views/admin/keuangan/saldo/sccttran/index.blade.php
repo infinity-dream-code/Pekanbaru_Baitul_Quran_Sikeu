@@ -166,12 +166,7 @@
                                 <div class="col">
                                     <select class="form-select" id="filter[jenis]" name="filter[jenis]"
                                             data-control="select2" data-placeholder="Pilih Jenis">
-                                        <option value="all">Semua</option>
-                                        @isset($jenisOptions)
-                                            @foreach($jenisOptions as $value => $label)
-                                                <option value="{{ $value }}">{{ $label }}</option>
-                                            @endforeach
-                                        @endisset
+                                        <option value="topup" selected>TOP UP</option>
                                     </select>
                                 </div>
                             </div>
@@ -214,7 +209,7 @@
 @section('script')
     <script src="{{asset('main/libs/select2/select2.js')}}"></script>
     <script src="{{asset('main/libs/datatables-bs5/datatables-bootstrap5.js')}}"></script>
-    <script src="{{asset('js/datatableCustom/Datatable-0-4.js')}}?v=20260724-excel-total"></script>
+    <script src="{{asset('js/datatableCustom/Datatable-0-4.js')}}?v=20261102-tgl-indo"></script>
     <script src="{{asset('main/libs/moment/moment.js')}}"></script>
     <script src="{{asset('main/libs/bootstrap-datepicker/bootstrap-datepicker.js')}}"></script>
 

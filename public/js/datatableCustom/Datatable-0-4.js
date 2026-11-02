@@ -145,6 +145,36 @@ function dateToExcelSerial(jsDate) {
     return days + timeFraction;
 }
 
+const HARI_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+const BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+function parseJsDate(data) {
+    if (!data || data === '0000-00-00 00:00:00' || data === '0000-00-00') {
+        return null;
+    }
+    const date = data instanceof Date ? data : new Date(data);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function pad2(n) {
+    return String(n).padStart(2, '0');
+}
+
+function formatTanggalIndo(data, withTime = false) {
+    if (typeof data === 'string' && /^(Minggu|Senin|Selasa|Rabu|Kamis|Jumat|Sabtu),/.test(data.trim())) {
+        return data;
+    }
+    const date = parseJsDate(data);
+    if (!date) {
+        return '';
+    }
+    const label = `${HARI_ID[date.getDay()]}, ${date.getDate()} ${BULAN_ID[date.getMonth()]} ${date.getFullYear()}`;
+    if (!withTime) {
+        return label;
+    }
+    return `${label} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
 const EXCEL_DATE_FORMATS = {
     'basicdate':  { code: 'd mmmm yyyy',                   id: '177' },
     'date':       { code: 'dddd", "d mmmm yyyy',           id: '178' },
@@ -185,32 +215,8 @@ function addExcelDateStyle(xlsx, formatCode, numFmtId) {
 }
 
 function applyExcelDateStyles(xlsx, sheet, dataColumns) {
-    const rows = $('row', sheet);
-    const styleCache = {};
-
-    let excelIdx = 0;
-    dataColumns.forEach(col => {
-        if (col.exportable !== true) return;
-        const ct = col.columnType?.toLowerCase();
-        const fmt = ct ? EXCEL_DATE_FORMATS[ct] : null;
-
-        if (fmt) {
-            if (!styleCache[fmt.id]) {
-                styleCache[fmt.id] = addExcelDateStyle(xlsx, fmt.code, fmt.id);
-            }
-            const styleIdx = String(styleCache[fmt.id]);
-
-            rows.each(function (rowIdx) {
-                if (rowIdx === 0) return;
-                const cell = $('c', this).eq(excelIdx);
-                if (cell.length) {
-                    cell.attr('s', styleIdx);
-                    cell.removeAttr('t');
-                }
-            });
-        }
-        excelIdx++;
-    });
+    // Tanggal diekspor sebagai teks Indonesia (Senin, 26 Oktober 2026),
+    // jadi tidak memakai format serial Excel yang mengikuti bahasa Inggris.
 }
 
 function getExcelColumnName(index) {
@@ -812,55 +818,14 @@ function dtButtons(options, buttons) {
                                 return row + 1;
                             case 'basicdate':
                                 if (!data) return '';
-                                if (config.extend === 'excel') {
-                                    return dateToExcelSerial(new Date(data));
-                                }
-                                let basicDate = new Date(data);
-                                let basicDateOptions = {
-                                    day: 'numeric',
-                                    month: 'long',
-                                    year: 'numeric'
-                                };
-                                return basicDate.toLocaleDateString('id-ID', basicDateOptions);
+                                return formatTanggalIndo(data, false).replace(/^[^,]+, /, '');
                             case 'date':
                             case 'dateformat':
                                 if (!data) return '';
-                                if (config.extend === 'excel') {
-                                    return dateToExcelSerial(new Date(data));
-                                }
-                                let date = new Date(data);
-                                let dateOptions = {
-                                    weekday: 'long',
-                                    day: 'numeric',
-                                    month: 'long',
-                                    year: 'numeric'
-                                };
-                                return date.toLocaleDateString('id-ID', dateOptions);
+                                return formatTanggalIndo(data, false);
                             case 'timestamp':
                             case 'datetime':
-                                if (!data || data === '0000-00-00 00:00:00' || data === '0000-00-00') {
-                                    return '';
-                                }
-                                if (config.extend === 'excel') {
-                                    const excelDate = new Date(data);
-                                    if (Number.isNaN(excelDate.getTime())) {
-                                        return '';
-                                    }
-                                    return dateToExcelSerial(excelDate);
-                                }
-                                const tsDate = new Date(data);
-                                if (Number.isNaN(tsDate.getTime())) {
-                                    return '';
-                                }
-                                const tsOptions = {
-                                    weekday: 'long',
-                                    day: 'numeric',
-                                    month: 'long',
-                                    year: 'numeric',
-                                    hour: 'numeric',
-                                    minute: 'numeric'
-                                };
-                                return tsDate.toLocaleDateString('id-ID', tsOptions);
+                                return formatTanggalIndo(data, true);
                             case 'periode':
                             case 'yearmonth':
                                 if (!data || typeof data !== 'string' || data.length !== 6 || !/^\d{6}$/.test(data)) {
@@ -1338,13 +1303,7 @@ async function getDT(options) {
                             case 'basicdate':
                                 renderFunc = function (data, type, row) {
                                     if (type === 'display' || type === 'filter') {
-                                        let date = new Date(data);
-                                        let options = {
-                                            day: 'numeric',
-                                            month: 'long',
-                                            year: 'numeric'
-                                        };
-                                        return date.toLocaleDateString('id-ID', options);
+                                        return formatTanggalIndo(data, false).replace(/^[^,]+, /, '');
                                     }
                                     return data;
                                 };
@@ -1353,14 +1312,7 @@ async function getDT(options) {
                             case 'dateformat':
                                 renderFunc = function (data, type, row) {
                                     if (type === 'display' || type === 'filter') {
-                                        let date = new Date(data);
-                                        let options = {
-                                            weekday: 'long',
-                                            day: 'numeric',
-                                            month: 'long',
-                                            year: 'numeric'
-                                        };
-                                        return date.toLocaleDateString('id-ID', options);
+                                        return formatTanggalIndo(data, false);
                                     }
                                     return data;
                                 };
@@ -1384,22 +1336,7 @@ async function getDT(options) {
                             case 'datetime':
                                 renderFunc = function (data, type, row) {
                                     if (type === 'display' || type === 'filter') {
-                                        if (!data || data === '0000-00-00 00:00:00' || data === '0000-00-00') {
-                                            return '';
-                                        }
-                                        const date = new Date(data);
-                                        if (Number.isNaN(date.getTime())) {
-                                            return '';
-                                        }
-                                        const options = {
-                                            weekday: 'long',
-                                            day: 'numeric',
-                                            month: 'long',
-                                            year: 'numeric',
-                                            hour: 'numeric',
-                                            minute: 'numeric'
-                                        };
-                                        return date.toLocaleDateString('id-ID', options);
+                                        return formatTanggalIndo(data, true);
                                     }
                                     return data;
                                 };

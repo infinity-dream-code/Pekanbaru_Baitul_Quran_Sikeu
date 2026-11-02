@@ -591,7 +591,7 @@
         });
 
         const instansi = {
-            nama_instansi: "{{ config('app.nama_instansi') }}",
+            nama_instansi: {!! json_encode(html_entity_decode((string) (config('app.nama_instansi') ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')) !!},
             nama_sub_1: "{{ config('app.nama_sub_instansi_1') }}",
             nama_sub_2: "{{ config('app.nama_sub_instansi_2') }}",
             akreditasi: "{{ config('app.akreditasi') }}",
