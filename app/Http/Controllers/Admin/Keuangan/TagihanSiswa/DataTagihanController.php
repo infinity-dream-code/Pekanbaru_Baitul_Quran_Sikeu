@@ -800,9 +800,11 @@ class DataTagihanController extends Controller
                 ->orderBy('scctbill.AA', 'asc');
         } else {
             $recordsQuery
-                ->orderByRaw('scctbill.FTGLTagihan IS NULL ASC')
-                ->orderByDesc('scctbill.FTGLTagihan')
-                ->orderByDesc('scctbill.AA');
+                ->orderByRaw("CASE WHEN scctcust.nmcust IS NULL OR TRIM(CAST(scctcust.nmcust AS CHAR)) IN ('', '-') THEN 1 ELSE 0 END ASC")
+                ->orderByRaw('LOWER(TRIM(CAST(scctcust.nmcust AS CHAR))) ASC')
+                ->orderBy('scctcust.nocust', 'asc')
+                ->orderByRaw('CAST(COALESCE(scctbill.FUrutan, 0) AS SIGNED) ASC')
+                ->orderBy('scctbill.AA', 'asc');
         }
 
         $rows = $recordsQuery
