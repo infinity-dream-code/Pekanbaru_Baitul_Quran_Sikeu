@@ -17,3 +17,8 @@ use Illuminate\Support\Facades\Artisan;
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+Artisan::command('sikeu:hide-reversed-payments', function () {
+    $updated = app(\App\Support\TagihanPaymentReversal::class)->hideStaleActivePayments();
+    $this->info("Ditandai {$updated} jurnal pembayaran lama (sudah di-reversal / diganti bayar ulang).");
+})->purpose('Sembunyikan jurnal bayar lama yang sudah di-reversal dari Data Pembayaran');

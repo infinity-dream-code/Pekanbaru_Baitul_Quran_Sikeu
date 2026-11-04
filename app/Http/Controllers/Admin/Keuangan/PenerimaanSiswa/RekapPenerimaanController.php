@@ -96,16 +96,51 @@ class RekapPenerimaanController extends Controller
 
     private function paymentBaseQuery()
     {
+        $metodes = \App\Support\TagihanPaymentReversal::paymentMetodeList();
+        $placeholders = implode(', ', array_fill(0, count($metodes), '?'));
+
         $query = sccttran::query()
             ->leftJoin('scctbill', function ($join) {
                 $join->on('scctbill.AA', '=', 'sccttran.BILLID')
                     ->on('scctbill.CUSTID', '=', 'sccttran.CUSTID');
             })
             ->leftJoin('scctcust', 'scctcust.CUSTID', '=', 'sccttran.CUSTID')
-            ->whereRaw("CAST(COALESCE(sccttran.DEBET, 0) AS SIGNED) > 0")
+            ->whereRaw('CAST(COALESCE(sccttran.DEBET, 0) AS SIGNED) > 0')
             ->whereRaw("TRIM(COALESCE(CAST(sccttran.BILLID AS CHAR), '')) != ''")
-            ->whereRaw("UPPER(TRIM(COALESCE(sccttran.METODE, ''))) IN ('FROM TELLER', 'CASH', 'FROM INVOICE', 'PAYMENT', 'FROM VA')")
-            ->whereRaw("UPPER(TRIM(COALESCE(sccttran.METODE, ''))) NOT IN ('TOP UP', 'REVERSAL', 'JURNAL SALDO')");
+            ->whereRaw("UPPER(TRIM(COALESCE(sccttran.METODE, ''))) IN ({$placeholders})", $metodes)
+            ->whereRaw("UPPER(TRIM(COALESCE(sccttran.METODE, ''))) NOT IN ('TOP UP', 'REVERSAL', 'JURNAL SALDO')")
+            // Jangan tampilkan pembayaran yang sudah digantikan audit reversal setelahnya
+            ->whereNotExists(function ($sub) {
+                $sub->selectRaw('1')
+                    ->from('sccttran as rev')
+                    ->whereColumn('rev.CUSTID', 'sccttran.CUSTID')
+                    ->whereColumn('rev.BILLID', 'sccttran.BILLID')
+                    ->whereRaw("UPPER(TRIM(COALESCE(rev.METODE, ''))) IN ('REVERSAL', 'JURNAL SALDO')")
+                    ->whereColumn('rev.TRXDATE', '>', 'sccttran.TRXDATE');
+            })
+            // Tagihan lunas sekali (bukan cicilan): hanya tampilkan pembayaran terakhir
+            // agar sisa jurnal sebelum reversal/bayar ulang tidak muncul dobel.
+            ->where(function ($q) use ($metodes, $placeholders) {
+                $q->whereRaw('CAST(COALESCE(scctbill.INSTALLMENT, 0) AS SIGNED) > 1')
+                    ->orWhereNotExists(function ($later) use ($metodes, $placeholders) {
+                        $later->selectRaw('1')
+                            ->from('sccttran as later_pay')
+                            ->whereColumn('later_pay.CUSTID', 'sccttran.CUSTID')
+                            ->whereColumn('later_pay.BILLID', 'sccttran.BILLID')
+                            ->whereRaw('CAST(COALESCE(later_pay.DEBET, 0) AS SIGNED) > 0')
+                            ->whereRaw("UPPER(TRIM(COALESCE(later_pay.METODE, ''))) IN ({$placeholders})", $metodes)
+                            ->whereRaw("UPPER(TRIM(COALESCE(later_pay.METODE, ''))) NOT IN ('TOP UP', 'REVERSAL', 'JURNAL SALDO')")
+                            ->whereColumn('later_pay.TRXDATE', '>', 'sccttran.TRXDATE');
+
+                        if (\App\Support\MultiVa::tranHasColumn('isreversal')) {
+                            $later->where(function ($r) {
+                                $r->whereNull('later_pay.isreversal')
+                                    ->orWhere('later_pay.isreversal', 0)
+                                    ->orWhere('later_pay.isreversal', '0');
+                            });
+                        }
+                    });
+            });
 
         if (\App\Support\MultiVa::tranHasColumn('isreversal')) {
             $query->where(function ($q) {
@@ -631,7 +666,7 @@ class RekapPenerimaanController extends Controller
 
             $unitCache = blank($this->sekolah) ? 'all' : md5((string) $this->sekolah);
             $totalRecords = Cache::remember(
-                "{$this->cacheKey}:total_all_data:v5:{$unitCache}",
+                "{$this->cacheKey}:total_all_data:v6:{$unitCache}",
                 now()->addMinutes(10),
                 function () {
                     $baseQuery = $this->paymentBaseQuery();

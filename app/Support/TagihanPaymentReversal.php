@@ -106,16 +106,27 @@ class TagihanPaymentReversal
                     ->orWhere("{$billAlias}.INSTALLMENT", '<=', 0);
             })
             ->whereNotExists(function ($sub) use ($billAlias) {
+                $metodes = self::paymentMetodeList();
+                $placeholders = implode(', ', array_fill(0, count($metodes), '?'));
                 $sub->select(DB::raw(1))
                     ->from('sccttran')
                     ->whereColumn('sccttran.BILLID', "{$billAlias}.AA")
                     ->whereColumn('sccttran.CUSTID', "{$billAlias}.CUSTID")
-                    ->where('sccttran.DEBET', '>', 0)
-                    ->where(function ($q) {
-                        $q->whereRaw('UPPER(TRIM(COALESCE(sccttran.METODE, ""))) IN (?, ?)', ['FROM TELLER', 'CASH'])
+                    ->whereRaw('CAST(COALESCE(sccttran.DEBET, 0) AS SIGNED) > 0')
+                    ->whereRaw("UPPER(TRIM(COALESCE(sccttran.METODE, ''))) NOT IN ('REVERSAL', 'JURNAL SALDO', 'TOP UP')")
+                    ->where(function ($q) use ($metodes, $placeholders) {
+                        $q->whereRaw("UPPER(TRIM(COALESCE(sccttran.METODE, ''))) IN ({$placeholders})", $metodes)
                             ->orWhere('sccttran.FIDBANK', self::SALDO_FIDBANK)
                             ->orWhereIn('sccttran.FIDBANK', self::TELLER_FIDBANKS);
                     });
+
+                if ($this->tranHasColumn('isreversal')) {
+                    $sub->where(function ($q) {
+                        $q->whereNull('sccttran.isreversal')
+                            ->orWhere('sccttran.isreversal', 0)
+                            ->orWhere('sccttran.isreversal', '0');
+                    });
+                }
             });
     }
 
@@ -168,18 +179,27 @@ class TagihanPaymentReversal
         return (string) preg_replace('/\D/', '', (string) $fidBank);
     }
 
+    /** Metode jurnal pembayaran aktif (bukan TOP UP / audit reversal). */
+    public static function paymentMetodeList(): array
+    {
+        return ['FROM TELLER', 'CASH', 'FROM INVOICE', 'PAYMENT', 'FROM VA'];
+    }
+
     private function paymentTransactionQuery(scctbill $tagihan)
     {
+        $metodes = self::paymentMetodeList();
+
         $query = sccttran::query()
             ->where('CUSTID', $tagihan->CUSTID)
             ->where('BILLID', $tagihan->AA)
-            ->where('DEBET', '>', 0)
-            ->where(function ($q) {
-                $q->whereRaw('UPPER(TRIM(COALESCE(METODE, ""))) IN (?, ?)', ['FROM TELLER', 'CASH'])
+            ->whereRaw('CAST(COALESCE(DEBET, 0) AS SIGNED) > 0')
+            ->where(function ($q) use ($metodes) {
+                $placeholders = implode(', ', array_fill(0, count($metodes), '?'));
+                $q->whereRaw("UPPER(TRIM(COALESCE(METODE, ''))) IN ({$placeholders})", $metodes)
                     ->orWhere('FIDBANK', self::SALDO_FIDBANK)
                     ->orWhereIn('FIDBANK', self::TELLER_FIDBANKS);
             })
-            ->whereRaw('UPPER(TRIM(COALESCE(METODE, ""))) NOT IN (?, ?)', ['REVERSAL', 'JURNAL SALDO']);
+            ->whereRaw('UPPER(TRIM(COALESCE(METODE, ""))) NOT IN (?, ?, ?)', ['REVERSAL', 'JURNAL SALDO', 'TOP UP']);
 
         if ($this->tranHasColumn('isreversal')) {
             $query->where(function ($q) {
@@ -211,13 +231,88 @@ class TagihanPaymentReversal
         return max(0, (int) ($tagihan->BILLAM ?? 0));
     }
 
+    /**
+     * Sembunyikan jurnal bayar lama dari Data Pembayaran.
+     * Prefer isreversal=1; jika kolom tidak ada, ubah METODE jadi REVERSAL
+     * agar keluar dari filter metode pembayaran.
+     */
     private function markPaymentRowsReversed(scctbill $tagihan): void
     {
-        if (!$this->tranHasColumn('isreversal')) {
+        $rows = $this->paymentTransactionQuery($tagihan)->get();
+        if ($rows->isEmpty()) {
             return;
         }
 
-        $this->paymentTransactionQuery($tagihan)->update(['isreversal' => 1]);
+        $ids = $rows->pluck('urut')->filter()->values()->all();
+        $hasUrut = $this->tranHasColumn('urut') && $ids !== [];
+
+        $base = sccttran::query()
+            ->where('CUSTID', $tagihan->CUSTID)
+            ->where('BILLID', $tagihan->AA);
+
+        if ($hasUrut) {
+            $base->whereIn('urut', $ids);
+        } else {
+            $base->whereRaw('CAST(COALESCE(DEBET, 0) AS SIGNED) > 0')
+                ->whereRaw('UPPER(TRIM(COALESCE(METODE, ""))) NOT IN (?, ?, ?)', ['REVERSAL', 'JURNAL SALDO', 'TOP UP']);
+        }
+
+        if ($this->tranHasColumn('isreversal')) {
+            (clone $base)->update(['isreversal' => 1]);
+
+            return;
+        }
+
+        (clone $base)->update(['METODE' => 'REVERSAL']);
+    }
+
+    /**
+     * Bersihkan data lama: tandai jurnal bayar yang terjadi sebelum
+     * audit REVERSAL / JURNAL SALDO (cicilan sah tanpa audit tidak disentuh).
+     */
+    public function hideStaleActivePayments(): int
+    {
+        $conn = DB::connection('DATA_MYSQL');
+        $metodes = self::paymentMetodeList();
+        $placeholders = implode(', ', array_fill(0, count($metodes), '?'));
+        $updated = 0;
+
+        $auditPairs = $conn->table('sccttran as audit')
+            ->select(['audit.CUSTID', 'audit.BILLID', DB::raw('MAX(audit.TRXDATE) as last_rev')])
+            ->whereRaw("UPPER(TRIM(COALESCE(audit.METODE, ''))) IN ('REVERSAL', 'JURNAL SALDO')")
+            ->whereRaw("TRIM(COALESCE(CAST(audit.BILLID AS CHAR), '')) != ''")
+            ->groupBy('audit.CUSTID', 'audit.BILLID')
+            ->get();
+
+        foreach ($auditPairs as $pair) {
+            $query = $conn->table('sccttran')
+                ->where('CUSTID', $pair->CUSTID)
+                ->where('BILLID', $pair->BILLID)
+                ->whereRaw('CAST(COALESCE(DEBET, 0) AS SIGNED) > 0')
+                ->whereRaw("UPPER(TRIM(COALESCE(METODE, ''))) IN ({$placeholders})", $metodes)
+                ->where('TRXDATE', '<=', $pair->last_rev)
+                ->when($this->tranHasColumn('isreversal'), function ($q) {
+                    $q->where(function ($inner) {
+                        $inner->whereNull('isreversal')
+                            ->orWhere('isreversal', 0)
+                            ->orWhere('isreversal', '0');
+                    });
+                });
+
+            $count = (clone $query)->count();
+            if ($count <= 0) {
+                continue;
+            }
+
+            if ($this->tranHasColumn('isreversal')) {
+                $query->update(['isreversal' => 1]);
+            } else {
+                $query->update(['METODE' => 'REVERSAL']);
+            }
+            $updated += $count;
+        }
+
+        return $updated;
     }
 
     private function resetBillToUnpaid(scctbill $tagihan, int $billAm): void
