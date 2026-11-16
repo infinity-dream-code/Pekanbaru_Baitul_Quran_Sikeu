@@ -122,10 +122,12 @@
                 wrapper.classList.add("position-relative");
                 select.parentNode.insertBefore(wrapper, select);
                 wrapper.appendChild(select);
+                const modalParent = $(select).closest('.modal');
                 $(select).select2({
-                    placeholder: "Pilih satu",
+                    placeholder: select.getAttribute('data-placeholder') || "Pilih satu",
                     language: "id",
-                    dropdownParent: $(wrapper)
+                    allowClear: true,
+                    dropdownParent: modalParent.length ? modalParent : $(wrapper)
                 });
             });
         });
@@ -147,10 +149,21 @@
                             <div class="mb-3">
                                 <label class="form-label required" for="thn_aka">Tahun Pelajaran</label>
                                 <input type="text" class="form-control" name="thn_aka" id="thn_aka" autocomplete="off"
-                                       placeholder="thn_aka" required>
+                                       placeholder="Contoh: 2025/2026" required>
+                                <div class="form-text">Isi tahun seperti <strong>2025/2026</strong>.</div>
                                 <div class="invalid-feedback" role="alert">
                                     <strong></strong>
                                 </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="semester">Semester (opsional)</label>
+                                <select class="form-select" name="semester" id="semester" data-control="select2"
+                                        data-placeholder="Pilih semester">
+                                    <option value="">Tanpa semester</option>
+                                    <option value="GANJIL">Ganjil</option>
+                                    <option value="GENAP">Genap</option>
+                                </select>
+                                <div class="form-text">Hasil contoh: <strong>2025/2026 - GANJIL</strong> atau <strong>2025/2026 - GENAP</strong>.</div>
                             </div>
                         </fieldset>
                     </div>

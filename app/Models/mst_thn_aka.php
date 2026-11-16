@@ -17,6 +17,7 @@ class mst_thn_aka extends Model
     public $incrementing = false;
 
     protected $fillable = [
+        "urut",
         "thn_aka",
     ];
 
