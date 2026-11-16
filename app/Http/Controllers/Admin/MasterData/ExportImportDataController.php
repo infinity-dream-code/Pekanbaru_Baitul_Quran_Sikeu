@@ -521,11 +521,58 @@ class ExportImportDataController extends Controller
                     }
 
                     $existingCust = scctcust::where('NUM2ND', $item['nodaftar'])->first();
-                    if ($existingCust && in_array(trim((string) $existingCust->NOCUST), ['', '-'], true)) {
-                        $existingCust->update([
-                            'NOCUST' => $item['nis'],
-                        ]);
+                    if (!$existingCust || !in_array(trim((string) $existingCust->NOCUST), ['', '-'], true)) {
+                        continue;
                     }
+
+                    $kelas = mst_kelas::findForImport(
+                        $item['unit'] ?? null,
+                        $item['kelas'] ?? null,
+                        $item['kelompok'] ?? null
+                    );
+                    if (!$kelas) {
+                        DB::connection('DATA_MYSQL')->rollBack();
+
+                        return response()->json([
+                            'message' => 'Silahkan periksa kembali kelas siswa di Excel (UNIT / KELAS / KELOMPOK)',
+                            'nodaftar' => $item['nodaftar'] ?? null,
+                            'unit' => $item['unit'] ?? null,
+                            'kelas' => $item['kelas'] ?? null,
+                            'kelompok' => $item['kelompok'] ?? null,
+                        ], 422);
+                    }
+
+                    $unitSekolah = $this->resolveSekolahForImport($item['unit'] ?? null, $kelas);
+                    $payload = [
+                        'NOCUST' => $item['nis'],
+                        'CODE02' => $kelas->unit,
+                        'DESC02' => $kelas->jenjang,
+                        'CODE03' => $kelas->id,
+                        'DESC03' => $kelas->kelas,
+                        'LastUpdate' => Carbon::now(),
+                    ];
+                    if ($unitSekolah) {
+                        $payload['CODE01'] = $unitSekolah->CODE01;
+                        $payload['DESC01'] = $unitSekolah->DESC01;
+                    }
+                    if (!empty($item['nama'])) {
+                        $payload['NMCUST'] = $item['nama'];
+                    }
+                    if (!empty($item['angkatan'])) {
+                        $payload['DESC04'] = $item['angkatan'];
+                    }
+                    if (array_key_exists('gender', $item) && $item['gender'] !== null && $item['gender'] !== '') {
+                        $payload['CODE04'] = $item['gender'];
+                    }
+                    if (array_key_exists('alamat', $item) && $item['alamat'] !== null && $item['alamat'] !== '') {
+                        $payload['DESC05'] = $item['alamat'];
+                    }
+                    $ortu = $this->resolveOrtuForDb($item);
+                    if ($ortu !== null) {
+                        $payload['GENUS'] = $ortu;
+                    }
+
+                    $existingCust->update($payload);
                 }
             }
 
