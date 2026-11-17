@@ -911,8 +911,10 @@
                     });
                 }
             })(instansi);
-            const headerLogo = "{{ base64_encode(file_get_contents(public_path(config('app.logo')))) }}";
-            const tandaTangan = @json($tanda_tangan);
+            const headerLogo = @json(\App\Support\KuitansiAssets::logo() ?: ('data:image/jpeg;base64,' . base64_encode(file_get_contents(public_path(config('app.logo'))))));
+            const tandaTangan = @json($tanda_tangan ?: \App\Support\KuitansiAssets::tandaTangan());
+            const stempelLunasUrl = @json(\App\Support\KuitansiAssets::stempelLunasUrl());
+            let stempelLunasDataUrl = null;
             const userName = "{{ Auth::user()->name }}";
             const domisili = "{{ config('app.domisili') }}";
             const tanggalSekarang = "{{ \Carbon\Carbon::now()->isoFormat('dddd, D MMMM YYYY') }}";
@@ -920,13 +922,36 @@
                 ? novaFromBills(nis, tagihans)
                 : (typeof showVABoth === 'function' ? showVABoth(nis) : '');
 
+            async function ensureStempelLunas() {
+                if (stempelLunasDataUrl) return stempelLunasDataUrl;
+                try {
+                    const response = await fetch(stempelLunasUrl);
+                    if (!response.ok) return null;
+                    const blob = await response.blob();
+                    stempelLunasDataUrl = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+                    return stempelLunasDataUrl;
+                } catch (e) {
+                    console.warn('Stempel LUNAS gagal dimuat', e);
+                    return null;
+                }
+            }
+
             async function generatePdf(title, bodyContent, unit_logo = false) {
                 try {
-                    let logo = 'data:image/jpeg;base64,' + headerLogo;
+                    const isKuitansi = String(title || '').toUpperCase().includes('KUITANSI');
+                    let logo = headerLogo;
 
-                    if (unit_logo) {
+                    // Kuitansi pakai logo Baitul Qur'an; dokumen lain boleh logo unit.
+                    if (!isKuitansi && unit_logo) {
                         logo = await getLogoUnit(unit_logo);
                     }
+
+                    const stempelLunas = isKuitansi ? await ensureStempelLunas() : null;
 
                     const orientation = 'portrait';
                     const pageMargins = [20, 20, 20, 20];
@@ -938,11 +963,11 @@
                     const headerTable = {
                         alignment: 'center',
                         table: {
-                            widths: [60, '*'],
+                            widths: [90, '*'],
                             body: [[
                                 logo ? {
                                     image: logo,
-                                    width: 60,
+                                    width: isKuitansi ? 90 : 60,
                                     alignment: 'center'
                                 } : '',
                                 {
@@ -983,10 +1008,12 @@
                                     },
                                     tandaTangan ? {
                                         image: tandaTangan,
-                                        width: 100,
-                                        alignment: 'center'
-                                    } : {},
-                                    {text: userName, alignment: 'center'}
+                                        width: 110,
+                                        height: 55,
+                                        alignment: 'center',
+                                        margin: [0, 4, 0, 2]
+                                    } : {text: '\n\n', alignment: 'center'},
+                                    {text: userName, alignment: 'center', decoration: 'underline'}
                                 ],
                                 width: 'auto'
                             }
@@ -1015,6 +1042,15 @@
                         ...bodyContent,
                         footer
                     ];
+
+                    if (stempelLunas) {
+                        content.push({
+                            image: stempelLunas,
+                            width: 210,
+                            absolutePosition: {x: 320, y: 360},
+                            opacity: 0.85
+                        });
+                    }
 
                     // PDF definition
                     const docDefinition = {
@@ -1177,7 +1213,7 @@
             }
 
             async function getLogoUnit(unit = false) {
-                const fallbackLogo = 'data:image/jpeg;base64,' + "{{ base64_encode(file_get_contents(public_path(config('app.logo')))) }}";
+                const fallbackLogo = headerLogo;
                 try {
                     if (!unit) {
                         throw 'error';
@@ -1277,15 +1313,21 @@
             }
 
             async function generateKuitansiAsync(biayaLayanan = false) {
-                let data = DT[`${dtOptions.tableId}`].rows({selected: true}).data().toArray();
-                data = data.filter(item => {
+                const selected = DT[`${dtOptions.tableId}`].rows({selected: true}).data().toArray();
+                if (!selected.length) {
+                    warningAlert('Silahkan cari data dulu, lalu klik baris tagihan yang ingin dicetak kuitansinya!');
+                    return;
+                }
+
+                let data = selected.filter(item => {
                     const tanggal = item.PAIDDT ?? item.TRXDATE;
                     const nominal = Number(item.BILLAM ?? item.DEBET ?? 0);
-                    return tanggal && nominal > 0;
+                    const tanggalValid = tanggal && tanggal !== '' && tanggal !== '0000-00-00 00:00:00' && tanggal !== '-';
+                    return tanggalValid && nominal > 0;
                 });
 
                 if (!data[0]) {
-                    warningAlert('Silahkan pilih data pembayaran yang belum di-reversal!');
+                    warningAlert('Data yang dipilih tidak memiliki tanggal/nominal bayar. Pilih baris tagihan lunas yang valid.');
                     return;
                 }
 

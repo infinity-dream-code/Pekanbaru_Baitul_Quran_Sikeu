@@ -20,6 +20,10 @@ return [
     'nama_instansi' => env('APP_NAMA_INSTANSI', 'Ponpes Baitul Qur\'an'),
     'alamat' => env('APP_ALAMAT', 'Kota Pekanbaru, Prov. Riau'),
     'logo' => env('APP_LOGO', 'logo_baitul_quran.jpeg'),
+    // Aset khusus kuitansi (public/)
+    'logo_kuitansi' => env('APP_LOGO_KUITANSI', 'baitul-quran.png'),
+    'ttd_kuitansi' => env('APP_TTD_KUITANSI', 'tanda-tangan.png'),
+    'stempel_lunas' => env('APP_STEMPEL_LUNAS', 'lunas.jpeg'),
     'email' => env('APP_EMAIL', 'ypisabkho@gmail.com'),
     'telepon' => env('APP_TELEPON', 'SIKEU'),
     'domisili' => env('APP_DOMISILI', 'Pekanbaru'),

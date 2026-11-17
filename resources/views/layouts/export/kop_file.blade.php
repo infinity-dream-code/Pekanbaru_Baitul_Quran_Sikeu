@@ -110,10 +110,19 @@
     <tr class="">
         <td style="text-align: center; vertical-align: middle;">
             @php
-                $logoPath = public_path(config('app.logo'));
-                $logoMime = 'image/jpeg';
+                $logoDataUri = \App\Support\KuitansiAssets::logo();
+                if (!$logoDataUri) {
+                    $logoPath = public_path(config('app.logo'));
+                    $logoExt = strtolower(pathinfo($logoPath, PATHINFO_EXTENSION));
+                    $logoMime = $logoExt === 'png' ? 'image/png' : 'image/jpeg';
+                    $logoDataUri = is_file($logoPath)
+                        ? ('data:' . $logoMime . ';base64,' . base64_encode(file_get_contents($logoPath)))
+                        : null;
+                }
             @endphp
-            <img src="data:{{ $logoMime }};base64,{{ base64_encode(file_get_contents($logoPath)) }}" style="max-height: 5rem; display: block; margin: auto;" alt="logo"/>
+            @if($logoDataUri)
+                <img src="{{ $logoDataUri }}" style="max-height: 5rem; display: block; margin: auto;" alt="logo"/>
+            @endif
         </td>
         <td>
             <table style="width: 100%;">

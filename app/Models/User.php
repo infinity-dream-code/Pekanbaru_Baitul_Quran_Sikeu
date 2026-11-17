@@ -61,11 +61,11 @@ class User extends Authenticatable
 
     public static function getTandaTanganBase64(): ?string
     {
-        return null;
+        return \App\Support\KuitansiAssets::tandaTangan();
     }
 
     public static function getLogoSekolahBase64(): ?string
     {
-        return null;
+        return \App\Support\KuitansiAssets::logo();
     }
 }
