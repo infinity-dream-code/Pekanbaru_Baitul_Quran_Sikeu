@@ -1503,45 +1503,46 @@
                             },
                             {
                                 width: '35%',
-                                alignment: 'center',
                                 stack: [
-                                    {text: 'Diterima Oleh,', alignment: 'center', margin: [0, 0, 0, 6]},
+                                    {text: 'Diterima Oleh,', alignment: 'center', margin: [0, 0, 0, 8]},
+                                    // Satu blok di tengah: logo BQ + TTD
                                     {
-                                        // logo BQ + TTD sebagai satu blok di tengah
                                         columns: [
                                             {width: '*', text: ''},
                                             {
-                                                width: 'auto',
-                                                stack: [
-                                                    logoBqBiru
-                                                        ? {image: logoBqBiru, width: 68, alignment: 'center'}
-                                                        : {text: ''}
-                                                ]
-                                            },
-                                            {
-                                                width: 'auto',
-                                                stack: [
-                                                    tandaTangan
-                                                        ? {
-                                                            image: tandaTangan,
-                                                            width: 115,
-                                                            alignment: 'center',
-                                                            margin: [6, 8, 0, 0]
-                                                        }
-                                                        : {text: '\n\n', alignment: 'center'}
-                                                ]
+                                                width: 190,
+                                                table: {
+                                                    widths: [70, 110],
+                                                    body: [[
+                                                        logoBqBiru
+                                                            ? {
+                                                                image: logoBqBiru,
+                                                                width: 65,
+                                                                alignment: 'center',
+                                                                margin: [0, 6, 0, 0]
+                                                            }
+                                                            : {text: ''},
+                                                        tandaTangan
+                                                            ? {
+                                                                image: tandaTangan,
+                                                                width: 105,
+                                                                alignment: 'center',
+                                                                margin: [0, 4, 0, 0]
+                                                            }
+                                                            : {text: '\n\n'}
+                                                    ]]
+                                                },
+                                                layout: 'noBorders'
                                             },
                                             {width: '*', text: ''}
-                                        ],
-                                        columnGap: 2,
-                                        margin: [0, 0, 0, 4]
+                                        ]
                                     },
                                     {
                                         text: '(' + userName + ')',
                                         alignment: 'center',
                                         bold: true,
                                         fontSize: 10,
-                                        margin: [0, 2, 0, 0]
+                                        margin: [0, 6, 0, 0]
                                     }
                                 ]
                             }
