@@ -1458,53 +1458,75 @@
                 const stempelLunas = await ensureStempelLunas();
                 const stempelTtdOverlay = await buildStempelTtdOverlay();
                 let siswa = data[0];
+                const nocust = siswa.nocust === null || siswa.nocust === '' || siswa.nocust === '-' || !siswa.nocust
+                    ? false
+                    : siswa.nocust;
                 const kelasLabel = `${siswa.DESC02 ?? ''} ${siswa.DESC03 ?? ''}`.trim() || '-';
-                let tanggalBayarRaw = siswa.PAIDDT ?? siswa.TRXDATE;
-                const tanggalBayarLabel = tanggalBayarRaw && tanggalBayarRaw !== '0000-00-00 00:00:00'
-                    ? new Date(tanggalBayarRaw).toLocaleDateString('id-ID', {
-                        day: 'numeric', month: 'long', year: 'numeric'
-                    })
-                    : '-';
+                const metodeLabel = formatMetodePembayaran(siswa.FIDBANK ?? '', siswa.BILL_NOREFF ?? '');
 
                 const infoBody = [
                     [
-                        {text: 'Nama Penyetor', bold: true},
-                        {text: ':'},
-                        {text: siswa.nmcust ?? '-', colSpan: 4}, {}, {}, {}
+                        nocust ? 'NIS' : 'No. Pendaftaran',
+                        ': ' + (nocust ? nocust : (siswa.NUM2ND ?? '-')),
+                        'Unit',
+                        ': ' + (siswa.CODE02 ?? '-')
                     ],
                     [
-                        {text: 'Santri Atas Nama', bold: true},
-                        {text: ':'},
-                        {text: siswa.nmcust ?? '-'},
-                        {text: 'Kelas', bold: true},
-                        {text: ':'},
-                        {text: kelasLabel}
+                        nocust ? 'No. VA' : '-',
+                        ': ' + (nocust ? showVA(nocust, data) : '-'),
+                        'Kelas',
+                        ': ' + kelasLabel
                     ],
                     [
-                        {text: 'Tanggal Pembayaran', bold: true},
-                        {text: ':'},
-                        {text: tanggalBayarLabel, colSpan: 4}, {}, {}, {}
+                        'Nama',
+                        ': ' + (siswa.nmcust ?? '-'),
+                        'Metode Bayar',
+                        ': ' + metodeLabel
                     ],
                 ];
 
                 const tableBody = [
-                    [
-                        {text: 'No', style: 'tableHeader'},
-                        {text: 'Jenis Pembayaran', style: 'tableHeader'},
-                        {text: 'Keterangan', style: 'tableHeader'},
-                        {text: 'Jumlah', style: 'tableHeader'},
-                    ],
+                    ['#', 'Nama Tagihan', 'Periode', 'Tagihan', 'Sisa Tagihan', 'Bayar', 'Metode', 'Tanggal Bayar']
+                        .map((h) => ({text: h, style: 'tableHeader'})),
                 ];
 
+                let totalTagihan = 0;
                 let totalBayar = 0;
+                let totalSisa = 0;
+
                 data.forEach((item, index) => {
-                    const billPaid = Number(item.BILLAM ?? item.DEBET ?? 0);
+                    let tanggalBayar = item.PAIDDT ?? item.TRXDATE;
+                    if (tanggalBayar && tanggalBayar !== '' && tanggalBayar !== '0000-00-00 00:00:00') {
+                        tanggalBayar = new Date(tanggalBayar).toLocaleDateString('id-ID', {
+                            weekday: 'long',
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric'
+                        });
+                    } else {
+                        tanggalBayar = '-';
+                    }
+
+                    const billTotal = Number(item.BILLAM_TOTAL ?? 0) || Number(item.BILLAM ?? 0);
+                    let billPaid = Number(item.BILLPAID ?? 0);
+                    if (billPaid <= 0) {
+                        billPaid = Number(item.BILLAM ?? item.DEBET ?? 0);
+                    }
+                    // Sisa = tagihan - sudah dibayar (lunas biasanya 0)
+                    const sisa = Math.max(0, billTotal - billPaid);
+                    totalTagihan += billTotal;
                     totalBayar += billPaid;
+                    totalSisa += sisa;
+
                     tableBody.push([
                         {text: String(index + 1), alignment: 'center'},
                         {text: item.BILLNM ?? '-', alignment: 'left'},
                         {text: item.BILLAC ?? item.BTA ?? '-', alignment: 'left'},
+                        {text: formatRupiah(billTotal), alignment: 'right'},
+                        {text: formatRupiah(sisa), alignment: 'right'},
                         {text: formatRupiah(billPaid), alignment: 'right'},
+                        {text: formatMetodePembayaran(item.FIDBANK ?? '', item.BILL_NOREFF ?? ''), alignment: 'left'},
+                        {text: tanggalBayar, alignment: 'left'},
                     ]);
                 });
 
@@ -1512,39 +1534,44 @@
                     totalBayar += 2000;
                     tableBody.push([
                         {text: '', alignment: 'center'},
-                        {text: 'Biaya Layanan', alignment: 'left'},
-                        {text: '-', alignment: 'left'},
+                        {text: 'Biaya Layanan', colSpan: 4, alignment: 'left'}, {}, {}, {},
                         {text: formatRupiah(2000), alignment: 'right'},
+                        {text: '', alignment: 'left'},
+                        {text: '', alignment: 'left'},
                     ]);
                 }
 
                 tableBody.push([
-                    {text: 'Total', colSpan: 3, alignment: 'right', bold: true}, {}, {},
+                    {text: 'Total', colSpan: 3, alignment: 'right', bold: true, style: 'tableHeader'}, {}, {},
+                    {text: formatRupiah(totalTagihan), alignment: 'right', bold: true},
+                    {text: formatRupiah(totalSisa), alignment: 'right', bold: true},
                     {text: formatRupiah(totalBayar), alignment: 'right', bold: true},
+                    {text: '', alignment: 'left'},
+                    {text: '', alignment: 'left'},
                 ]);
 
                 const content = [
                     {
                         table: {
-                            widths: [120, 10, '*', 50, 10, '*'],
+                            widths: ['18%', '32%', '16%', '34%'],
                             body: infoBody
                         },
                         layout: 'noBorders',
                         margin: [0, 0, 0, 10],
-                        fontSize: 11
+                        fontSize: 10
                     },
                     {
                         table: {
-                            widths: [30, '*', 120, 110],
+                            widths: ['4%', '16%', '9%', '12%', '12%', '12%', '14%', '21%'],
                             body: tableBody,
                         },
                         layout: {
                             fillColor: (rowIndex) => rowIndex === 0 ? '#ededed' : null,
-                            hLineWidth: () => 0.7,
-                            vLineWidth: () => 0.7
+                            hLineWidth: () => 0.5,
+                            vLineWidth: () => 0.5
                         },
                         margin: [0, 0, 0, 8],
-                        fontSize: 11
+                        fontSize: 8
                     },
                     {
                         text: [
@@ -1552,7 +1579,7 @@
                             {text: terbilangId(totalBayar), italics: true}
                         ],
                         margin: [0, 4, 0, 18],
-                        fontSize: 11
+                        fontSize: 10
                     },
                     {
                         // Ikuti editan user: LUNAS tengah, stampel+TTD overlap di kanan
