@@ -942,6 +942,52 @@
                 }
             }
 
+            function loadImageDataUrl(src) {
+                return new Promise((resolve, reject) => {
+                    if (!src) {
+                        resolve(null);
+                        return;
+                    }
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = reject;
+                    img.src = src;
+                });
+            }
+
+            /**
+             * Gabung stampel + TTD jadi 1 gambar (stampel kiri, TTD menimpa ke kanan)
+             * supaya posisi mirip editan user.
+             */
+            async function buildStempelTtdOverlay() {
+                if (!stempelTtd && !tandaTangan) return null;
+                if (!stempelTtd) return tandaTangan;
+                if (!tandaTangan) return stempelTtd;
+
+                try {
+                    const [stampImg, ttdImg] = await Promise.all([
+                        loadImageDataUrl(stempelTtd),
+                        loadImageDataUrl(tandaTangan),
+                    ]);
+                    if (!stampImg || !ttdImg) return tandaTangan || stempelTtd;
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 420;
+                    canvas.height = 200;
+                    const ctx = canvas.getContext('2d');
+
+                    // Stampel kiri-bawah (lapisan bawah)
+                    ctx.drawImage(stampImg, 20, 35, 200, 130);
+                    // TTD menimpa ke kanan atas stampel (lapisan atas)
+                    ctx.drawImage(ttdImg, 130, 25, 270, 150);
+
+                    return canvas.toDataURL('image/png');
+                } catch (e) {
+                    console.warn('Gagal gabung stampel+TTD', e);
+                    return tandaTangan || stempelTtd;
+                }
+            }
+
             async function generatePdf(title, bodyContent, unit_logo = false) {
                 try {
                     // KWITANSI (W) maupun KUITANSI (U)
@@ -1386,6 +1432,7 @@
                 loadingAlert('Membuat kuitansi...');
 
                 const stempelLunas = await ensureStempelLunas();
+                const stempelTtdOverlay = await buildStempelTtdOverlay();
                 let siswa = data[0];
                 const kelasLabel = `${siswa.DESC02 ?? ''} ${siswa.DESC03 ?? ''}`.trim() || '-';
                 let tanggalBayarRaw = siswa.PAIDDT ?? siswa.TRXDATE;
@@ -1484,10 +1531,10 @@
                         fontSize: 11
                     },
                     {
-                        // Ikuti editan: LUNAS tengah, stampel BQ ditimpa TTD di kanan
+                        // Ikuti editan user: LUNAS tengah, stampel+TTD overlap di kanan
                         columns: [
                             {
-                                width: '30%',
+                                width: '28%',
                                 stack: [
                                     {text: 'Penyetor,', alignment: 'center'},
                                     {text: '\n\n\n\n\n', alignment: 'center'},
@@ -1495,54 +1542,41 @@
                                 ]
                             },
                             {
-                                width: '35%',
+                                width: '36%',
                                 stack: [
                                     stempelLunas
                                         ? {
                                             image: stempelLunas,
-                                            width: 155,
+                                            width: 150,
                                             alignment: 'center',
-                                            margin: [0, 28, 0, 0]
+                                            margin: [0, 30, 0, 0]
                                         }
                                         : {text: ''}
                                 ]
                             },
                             {
-                                width: '35%',
+                                width: '36%',
                                 stack: [
-                                    {text: 'Diterima Oleh,', alignment: 'center', margin: [0, 0, 0, 2]},
-                                    {
-                                        // stampel di bawah, TTD ditimpa di atasnya (geser kanan)
-                                        stack: [
-                                            stempelTtd
-                                                ? {
-                                                    image: stempelTtd,
-                                                    width: 100,
-                                                    alignment: 'left',
-                                                    margin: [8, 6, 0, 0]
-                                                }
-                                                : {text: ''},
-                                            tandaTangan
-                                                ? {
-                                                    image: tandaTangan,
-                                                    width: 125,
-                                                    // naik + geser kanan supaya menimpa stampel
-                                                    relativePosition: {x: 42, y: -58}
-                                                }
-                                                : {text: '\n\n\n\n', alignment: 'center'}
-                                        ]
-                                    },
+                                    {text: 'Diterima Oleh,', alignment: 'center', margin: [0, 0, 0, 4]},
+                                    stempelTtdOverlay
+                                        ? {
+                                            image: stempelTtdOverlay,
+                                            width: 165,
+                                            alignment: 'center',
+                                            margin: [0, 0, 0, 2]
+                                        }
+                                        : {text: '\n\n\n\n', alignment: 'center'},
                                     {
                                         text: '(' + userName + ')',
                                         alignment: 'center',
                                         bold: true,
                                         fontSize: 10,
-                                        margin: [0, 10, 0, 0]
+                                        margin: [0, 2, 0, 0]
                                     }
                                 ]
                             }
                         ],
-                        columnGap: 2,
+                        columnGap: 4,
                         margin: [0, 6, 0, 0]
                     }
                 ];
