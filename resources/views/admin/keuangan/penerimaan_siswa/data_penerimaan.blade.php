@@ -955,9 +955,30 @@
                 });
             }
 
+            /** Buat background putih/hitam jadi transparan biar bisa ditimpa. */
+            function imageWithTransparentBg(img, mode) {
+                const tmp = document.createElement('canvas');
+                tmp.width = img.naturalWidth || img.width;
+                tmp.height = img.naturalHeight || img.height;
+                const tctx = tmp.getContext('2d');
+                tctx.drawImage(img, 0, 0);
+                const imageData = tctx.getImageData(0, 0, tmp.width, tmp.height);
+                const d = imageData.data;
+                for (let i = 0; i < d.length; i += 4) {
+                    const r = d[i], g = d[i + 1], b = d[i + 2];
+                    if (mode === 'white' && r > 235 && g > 235 && b > 235) {
+                        d[i + 3] = 0;
+                    } else if (mode === 'black' && r < 40 && g < 40 && b < 40) {
+                        d[i + 3] = 0;
+                    }
+                }
+                tctx.putImageData(imageData, 0, 0);
+                return tmp;
+            }
+
             /**
-             * Gabung stampel + TTD jadi 1 gambar (stampel kiri, TTD menimpa ke kanan)
-             * supaya posisi mirip editan user.
+             * Gabung stampel + TTD jadi 1 gambar (seperti editan user):
+             * stampel kiri, TTD menimpa di atasnya ke kanan.
              */
             async function buildStempelTtdOverlay() {
                 if (!stempelTtd && !tandaTangan) return null;
@@ -971,15 +992,18 @@
                     ]);
                     if (!stampImg || !ttdImg) return tandaTangan || stempelTtd;
 
+                    const stampClean = imageWithTransparentBg(stampImg, 'black');
+                    const ttdClean = imageWithTransparentBg(ttdImg, 'white');
+
                     const canvas = document.createElement('canvas');
-                    canvas.width = 420;
-                    canvas.height = 200;
+                    canvas.width = 400;
+                    canvas.height = 180;
                     const ctx = canvas.getContext('2d');
 
-                    // Stampel kiri-bawah (lapisan bawah)
-                    ctx.drawImage(stampImg, 20, 35, 200, 130);
-                    // TTD menimpa ke kanan atas stampel (lapisan atas)
-                    ctx.drawImage(ttdImg, 130, 25, 270, 150);
+                    // Stampel (bawah) — sedikit ke kiri
+                    ctx.drawImage(stampClean, 30, 25, 190, 125);
+                    // TTD (atas) — geser ke kiri biar benar-benar menimpa stampel
+                    ctx.drawImage(ttdClean, 95, 20, 280, 145);
 
                     return canvas.toDataURL('image/png');
                 } catch (e) {
