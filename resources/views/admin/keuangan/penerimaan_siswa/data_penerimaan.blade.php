@@ -951,10 +951,8 @@
                         logo = await getLogoUnit(unit_logo);
                     }
 
-                    const stempelLunas = isKuitansi ? await ensureStempelLunas() : null;
-
                     const orientation = 'portrait';
-                    const pageMargins = [20, 20, 20, 20];
+                    const pageMargins = isKuitansi ? [28, 24, 28, 24] : [20, 20, 20, 20];
                     const tanggalSekarang = new Date().toLocaleDateString('id-ID', {
                         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
                     });
@@ -963,11 +961,11 @@
                     const headerTable = {
                         alignment: 'center',
                         table: {
-                            widths: [90, '*'],
+                            widths: [isKuitansi ? 100 : 60, '*'],
                             body: [[
                                 logo ? {
                                     image: logo,
-                                    width: isKuitansi ? 90 : 60,
+                                    width: isKuitansi ? 100 : 60,
                                     alignment: 'center'
                                 } : '',
                                 {
@@ -980,14 +978,17 @@
                                             text: instansi.nama_sub_2.toUpperCase(),
                                             style: 'headerSmall'
                                         } : '',
-                                        {text: instansi.nama_instansi.toUpperCase(), style: 'headerBig'},
+                                        {
+                                            text: (isKuitansi ? "BAITUL QUR'AN RIAU" : instansi.nama_instansi).toUpperCase(),
+                                            style: 'headerBig'
+                                        },
                                         instansi.akreditasi ? {text: instansi.akreditasi, style: 'headerSmall'} : '',
                                         instansi.alamat ? {text: instansi.alamat, style: 'headerSmall'} : '',
-                                        {
+                                        !isKuitansi ? {
                                             text: `Telp: ${instansi.kontak.telepon || '-'} | Email: ${instansi.kontak.email || '-'} | Web: ${instansi.kontak.website || '-'}`,
                                             style: 'headerSmall'
-                                        }
-                                    ],
+                                        } : ''
+                                    ].filter(Boolean),
                                     alignment: 'center'
                                 }
                             ]]
@@ -995,8 +996,8 @@
                         layout: 'noBorders'
                     };
 
-                    // Footer (shared)
-                    const footer = {
+                    // Footer (shared) — kuitansi punya blok tanda tangan sendiri + stiker LUNAS
+                    const footer = isKuitansi ? null : {
                         columns: [
                             {text: '', width: '*'},
                             {
@@ -1038,19 +1039,10 @@
                                 }
                             ]
                         },
-                        {text: String(title || '').toUpperCase(), style: 'title', margin: [0, 5, 0, 5]},
+                        {text: String(title || '').toUpperCase(), style: 'title', margin: [0, 5, 0, 8]},
                         ...bodyContent,
-                        footer
                     ];
-
-                    if (stempelLunas) {
-                        content.push({
-                            image: stempelLunas,
-                            width: 210,
-                            absolutePosition: {x: 320, y: 360},
-                            opacity: 0.85
-                        });
-                    }
+                    if (footer) content.push(footer);
 
                     // PDF definition
                     const docDefinition = {
@@ -1312,6 +1304,25 @@
                 return generateKuitansiAsync(biayaLayanan);
             }
 
+            function terbilangId(n) {
+                n = Math.floor(Math.abs(Number(n) || 0));
+                const satuan = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas'];
+                const tulis = (x) => {
+                    if (x < 12) return satuan[x];
+                    if (x < 20) return tulis(x - 10) + ' belas';
+                    if (x < 100) return tulis(Math.floor(x / 10)) + ' puluh' + (x % 10 ? ' ' + tulis(x % 10) : '');
+                    if (x < 200) return 'seratus' + (x - 100 ? ' ' + tulis(x - 100) : '');
+                    if (x < 1000) return tulis(Math.floor(x / 100)) + ' ratus' + (x % 100 ? ' ' + tulis(x % 100) : '');
+                    if (x < 2000) return 'seribu' + (x - 1000 ? ' ' + tulis(x - 1000) : '');
+                    if (x < 1000000) return tulis(Math.floor(x / 1000)) + ' ribu' + (x % 1000 ? ' ' + tulis(x % 1000) : '');
+                    if (x < 1000000000) return tulis(Math.floor(x / 1000000)) + ' juta' + (x % 1000000 ? ' ' + tulis(x % 1000000) : '');
+                    return tulis(Math.floor(x / 1000000000)) + ' milyar' + (x % 1000000000 ? ' ' + tulis(x % 1000000000) : '');
+                };
+                if (n === 0) return 'Nol rupiah';
+                const hasil = tulis(n).trim().replace(/\s+/g, ' ');
+                return hasil.charAt(0).toUpperCase() + hasil.slice(1) + ' rupiah';
+            }
+
             async function generateKuitansiAsync(biayaLayanan = false) {
                 const selected = DT[`${dtOptions.tableId}`].rows({selected: true}).data().toArray();
                 if (!selected.length) {
@@ -1341,104 +1352,139 @@
 
                 loadingAlert('Membuat kuitansi...');
 
+                const stempelLunas = await ensureStempelLunas();
                 let siswa = data[0];
-                let nocust = siswa.nocust === null || siswa.nocust === '' || siswa.nocust === '-' || !siswa.nocust ? false : siswa.nocust;
-                const uniqueMetode = [...new Set(data.map(item => String(item.FIDBANK ?? '')))].filter(Boolean);
-                const metodeLabel = uniqueMetode.length > 1
-                    ? 'Beragam'
-                    : formatMetodePembayaran(siswa.FIDBANK ?? '', siswa.BILL_NOREFF ?? '');
+                const kelasLabel = `${siswa.DESC02 ?? ''} ${siswa.DESC03 ?? ''}`.trim() || '-';
+                let tanggalBayarRaw = siswa.PAIDDT ?? siswa.TRXDATE;
+                const tanggalBayarLabel = tanggalBayarRaw && tanggalBayarRaw !== '0000-00-00 00:00:00'
+                    ? new Date(tanggalBayarRaw).toLocaleDateString('id-ID', {
+                        day: 'numeric', month: 'long', year: 'numeric'
+                    })
+                    : '-';
 
-                const mainTable = [
-                    [(nocust ? 'NIS ' : 'No. Pendaftaran'), ': ' + (nocust ? nocust : siswa.NUM2ND), 'Unit', ': ' + siswa.CODE02],
-                    [(nocust ? 'No. VA ' : '-'), ': ' + (nocust ? showVA(nocust, data.tagihans || []) : ''), 'Kelas', ': ' + (siswa.DESC02 ?? '') + ' ' + (siswa.DESC03 ?? '')],
-                    ['Nama ', ': ' + siswa.nmcust, 'Metode Bayar', ': ' + metodeLabel],
-                ]
+                const infoBody = [
+                    [
+                        {text: 'Nama Penyetor', bold: true},
+                        {text: ':'},
+                        {text: siswa.nmcust ?? '-', colSpan: 4}, {}, {}, {}
+                    ],
+                    [
+                        {text: 'Santri Atas Nama', bold: true},
+                        {text: ':'},
+                        {text: siswa.nmcust ?? '-'},
+                        {text: 'Kelas', bold: true},
+                        {text: ':'},
+                        {text: kelasLabel}
+                    ],
+                    [
+                        {text: 'Tanggal Pembayaran', bold: true},
+                        {text: ':'},
+                        {text: tanggalBayarLabel, colSpan: 4}, {}, {}, {}
+                    ],
+                ];
 
-                let content = [];
-                const headerContent = [
-                    {
-                        table: {
-                            widths: ['15%', '35%', '15%', '35%'],
-                            body: mainTable
-                        },
-                        layout: 'noBorders'
-                    },
-                    {
-                        text: '',
-                        margin: [0, 5, 0, 5]
-                    },
-                ]
+                const tableBody = [
+                    [
+                        {text: 'No', style: 'tableHeader'},
+                        {text: 'Jenis Pembayaran', style: 'tableHeader'},
+                        {text: 'Keterangan', style: 'tableHeader'},
+                        {text: 'Jumlah', style: 'tableHeader'},
+                    ],
+                ];
 
-                content.push(headerContent);
-
-                const tableBody = [];
-                tableBody.push(
-                    ['#', 'Nama Tagihan', 'Periode', 'Tagihan', 'Bayar', 'Metode', 'Tanggal Bayar']
-                        .map(h => ({text: h, style: 'tableHeader'})),
-                );
-
-                let totalTagihan = 0;
                 let totalBayar = 0;
-
                 data.forEach((item, index) => {
-                    let tanggalBayar = item.PAIDDT ?? item.TRXDATE;
-                    if (tanggalBayar && tanggalBayar !== '' && tanggalBayar !== '0000-00-00 00:00:00') {
-                        tanggalBayar = new Date(tanggalBayar).toLocaleDateString('id-ID', {
-                            weekday: 'long',
-                            day: 'numeric',
-                            month: 'long',
-                            year: 'numeric'
-                        });
-                    }
-
-                    const billAm = Number(item.BILLAM_TOTAL ?? item.BILLAM ?? 0);
                     const billPaid = Number(item.BILLAM ?? item.DEBET ?? 0);
-                    totalTagihan += billAm;
                     totalBayar += billPaid;
-
                     tableBody.push([
-                        {text: index + 1, alignment: 'center'},
-                        {text: item.BILLNM, alignment: 'left'},
+                        {text: String(index + 1), alignment: 'center'},
+                        {text: item.BILLNM ?? '-', alignment: 'left'},
                         {text: item.BILLAC ?? item.BTA ?? '-', alignment: 'left'},
-                        {text: formatRupiah(billAm), alignment: 'right'},
                         {text: formatRupiah(billPaid), alignment: 'right'},
-                        {text: formatMetodePembayaran(item.FIDBANK ?? '', item.BILL_NOREFF ?? ''), alignment: 'left'},
-                        {text: tanggalBayar, alignment: 'left'},
                     ]);
-                })
+                });
 
                 if (biayaLayanan) {
+                    totalBayar += 2000;
                     tableBody.push([
-                        {colSpan: 4, text: 'Biaya Layanan', alignment: 'right', style: 'tableHeader'},
-                        {}, {}, {},
+                        {text: '', alignment: 'center'},
+                        {text: 'Biaya Layanan', alignment: 'left'},
+                        {text: '-', alignment: 'left'},
                         {text: formatRupiah(2000), alignment: 'right'},
-                        {}, {}
-                    ])
+                    ]);
                 }
 
                 tableBody.push([
-                    {colSpan: 4, text: 'Total', alignment: 'right', style: 'tableHeader'},
-                    {}, {}, {},
-                    {text: formatRupiah(totalBayar + (biayaLayanan ? 2000 : 0)), alignment: 'right'},
-                    {}, {}
-                ])
+                    {text: 'Total', colSpan: 3, alignment: 'right', bold: true}, {}, {},
+                    {text: formatRupiah(totalBayar), alignment: 'right', bold: true},
+                ]);
 
-                content.push({
-                    table: {
-                        widths: ['3%', '22%', '11%', '14%', '14%', '16%', '20%'],
-                        body: tableBody,
+                const content = [
+                    {
+                        table: {
+                            widths: [120, 10, '*', 50, 10, '*'],
+                            body: infoBody
+                        },
+                        layout: 'noBorders',
+                        margin: [0, 0, 0, 10],
+                        fontSize: 11
                     },
-                    layout: {
-                        fillColor: (rowIndex) => rowIndex === 0 ? '#ededed' : null,
-                        hLineWidth: () => 0.5,
-                        vLineWidth: () => 0.5
+                    {
+                        table: {
+                            widths: [30, '*', 120, 110],
+                            body: tableBody,
+                        },
+                        layout: {
+                            fillColor: (rowIndex) => rowIndex === 0 ? '#ededed' : null,
+                            hLineWidth: () => 0.7,
+                            vLineWidth: () => 0.7
+                        },
+                        margin: [0, 0, 0, 8],
+                        fontSize: 11
                     },
-                    margin: [0, 0, 0, 10],
-                    fontSize: 12
-                });
+                    {
+                        text: [
+                            {text: 'Terbilang : ', bold: true},
+                            {text: terbilangId(totalBayar), italics: true}
+                        ],
+                        margin: [0, 4, 0, 18],
+                        fontSize: 11
+                    },
+                    {
+                        columns: [
+                            {
+                                width: '*',
+                                stack: [
+                                    {text: 'Penyetor,', alignment: 'center'},
+                                    {text: '\n\n\n\n', alignment: 'center'},
+                                    {text: '(........................)', alignment: 'center'}
+                                ]
+                            },
+                            {
+                                width: 170,
+                                stack: [
+                                    stempelLunas
+                                        ? {image: stempelLunas, width: 160, alignment: 'center', margin: [0, 8, 0, 0]}
+                                        : {text: '', margin: [0, 40, 0, 0]}
+                                ]
+                            },
+                            {
+                                width: '*',
+                                stack: [
+                                    {text: 'Diterima Oleh,', alignment: 'center'},
+                                    tandaTangan
+                                        ? {image: tandaTangan, width: 95, height: 48, alignment: 'center', margin: [0, 4, 0, 2]}
+                                        : {text: '\n\n\n', alignment: 'center'},
+                                    {text: '(' + userName + ')', alignment: 'center'}
+                                ]
+                            }
+                        ],
+                        margin: [0, 6, 0, 0]
+                    }
+                ];
 
                 Swal.close();
-                generatePdf('KUITANSI', content, siswa.CODE02);
+                generatePdf('KWITANSI PEMBAYARAN', content, false);
             }
 
             document.getElementById('cetak-kuitansi').addEventListener('click', async function (e) {
