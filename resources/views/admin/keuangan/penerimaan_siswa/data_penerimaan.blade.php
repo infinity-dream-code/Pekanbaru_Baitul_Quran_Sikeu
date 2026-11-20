@@ -1528,8 +1528,8 @@
                                                 ? {
                                                     image: stempelTtd,
                                                     width: 95,
-                                                    // naikkan ke atas TTD + sedikit ke kiri
-                                                    relativePosition: {x: 8, y: -72}
+                                                    // naik ke atas TTD + geser kanan biar lebih menimpa
+                                                    relativePosition: {x: 55, y: -72}
                                                 }
                                                 : {}
                                         ]
