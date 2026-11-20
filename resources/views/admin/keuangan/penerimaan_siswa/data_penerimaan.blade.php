@@ -960,22 +960,37 @@
                     });
                     const availableWidth = getContentWidth('A4', orientation, pageMargins);
 
-                    // Header kuitansi: logo resmi sidebar (logo_baitul_quran.jpeg)
+                    // Header kuitansi: logo kiri (ukuran wajar) + teks kanan
                     const headerTable = isKuitansi ? {
-                        alignment: 'center',
-                        stack: [
-                            logo ? {
-                                image: logo,
-                                width: 280,
-                                alignment: 'center',
-                                margin: [0, 0, 0, 4]
-                            } : {},
-                            instansi.alamat ? {
-                                text: instansi.alamat,
-                                style: 'headerSmall',
-                                alignment: 'center'
-                            } : {}
-                        ]
+                        table: {
+                            widths: [130, '*'],
+                            body: [[
+                                logo ? {
+                                    image: logo,
+                                    width: 120,
+                                    alignment: 'left',
+                                    margin: [0, 2, 8, 0]
+                                } : '',
+                                {
+                                    stack: [
+                                        {
+                                            text: "BAITUL QUR'AN RIAU",
+                                            style: 'headerBig',
+                                            alignment: 'center'
+                                        },
+                                        instansi.alamat ? {
+                                            text: instansi.alamat,
+                                            style: 'headerSmall',
+                                            alignment: 'center',
+                                            margin: [0, 2, 0, 0]
+                                        } : ''
+                                    ].filter(Boolean),
+                                    alignment: 'center',
+                                    margin: [0, 8, 0, 0]
+                                }
+                            ]]
+                        },
+                        layout: 'noBorders'
                     } : {
                         alignment: 'center',
                         table: {
@@ -1488,40 +1503,45 @@
                             },
                             {
                                 width: '35%',
+                                alignment: 'center',
                                 stack: [
-                                    {text: 'Diterima Oleh,', alignment: 'center', margin: [0, 0, 0, 8]},
+                                    {text: 'Diterima Oleh,', alignment: 'center', margin: [0, 0, 0, 6]},
                                     {
+                                        // logo BQ + TTD sebagai satu blok di tengah
                                         columns: [
+                                            {width: '*', text: ''},
                                             {
-                                                width: 78,
+                                                width: 'auto',
                                                 stack: [
                                                     logoBqBiru
-                                                        ? {image: logoBqBiru, width: 74, alignment: 'center'}
+                                                        ? {image: logoBqBiru, width: 68, alignment: 'center'}
                                                         : {text: ''}
                                                 ]
                                             },
                                             {
-                                                width: '*',
+                                                width: 'auto',
                                                 stack: [
                                                     tandaTangan
                                                         ? {
                                                             image: tandaTangan,
-                                                            width: 130,
+                                                            width: 115,
                                                             alignment: 'center',
-                                                            margin: [0, 2, 0, 4]
+                                                            margin: [6, 8, 0, 0]
                                                         }
-                                                        : {text: '\n\n\n', alignment: 'center'},
-                                                    {
-                                                        text: '(' + userName + ')',
-                                                        alignment: 'center',
-                                                        bold: true,
-                                                        fontSize: 10,
-                                                        margin: [0, 2, 0, 0]
-                                                    }
+                                                        : {text: '\n\n', alignment: 'center'}
                                                 ]
-                                            }
+                                            },
+                                            {width: '*', text: ''}
                                         ],
-                                        columnGap: 6
+                                        columnGap: 2,
+                                        margin: [0, 0, 0, 4]
+                                    },
+                                    {
+                                        text: '(' + userName + ')',
+                                        alignment: 'center',
+                                        bold: true,
+                                        fontSize: 10,
+                                        margin: [0, 2, 0, 0]
                                     }
                                 ]
                             }
