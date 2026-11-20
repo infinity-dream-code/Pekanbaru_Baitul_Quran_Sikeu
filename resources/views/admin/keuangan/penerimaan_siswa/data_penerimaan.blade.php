@@ -1504,45 +1504,28 @@
                             {
                                 width: '35%',
                                 stack: [
-                                    {text: 'Diterima Oleh,', alignment: 'center', margin: [0, 0, 0, 8]},
-                                    // Satu blok di tengah: logo BQ + TTD
-                                    {
-                                        columns: [
-                                            {width: '*', text: ''},
-                                            {
-                                                width: 190,
-                                                table: {
-                                                    widths: [70, 110],
-                                                    body: [[
-                                                        logoBqBiru
-                                                            ? {
-                                                                image: logoBqBiru,
-                                                                width: 65,
-                                                                alignment: 'center',
-                                                                margin: [0, 6, 0, 0]
-                                                            }
-                                                            : {text: ''},
-                                                        tandaTangan
-                                                            ? {
-                                                                image: tandaTangan,
-                                                                width: 105,
-                                                                alignment: 'center',
-                                                                margin: [0, 4, 0, 0]
-                                                            }
-                                                            : {text: '\n\n'}
-                                                    ]]
-                                                },
-                                                layout: 'noBorders'
-                                            },
-                                            {width: '*', text: ''}
-                                        ]
-                                    },
+                                    {text: 'Diterima Oleh,', alignment: 'center', margin: [0, 0, 0, 4]},
+                                    logoBqBiru
+                                        ? {
+                                            image: logoBqBiru,
+                                            width: 72,
+                                            alignment: 'center',
+                                            margin: [0, 2, 0, 2]
+                                        }
+                                        : {text: ''},
+                                    tandaTangan
+                                        ? {
+                                            image: tandaTangan,
+                                            width: 120,
+                                            alignment: 'center',
+                                            margin: [0, 0, 0, 4]
+                                        }
+                                        : {text: '\n\n\n', alignment: 'center'},
                                     {
                                         text: '(' + userName + ')',
                                         alignment: 'center',
                                         bold: true,
-                                        fontSize: 10,
-                                        margin: [0, 6, 0, 0]
+                                        fontSize: 10
                                     }
                                 ]
                             }
