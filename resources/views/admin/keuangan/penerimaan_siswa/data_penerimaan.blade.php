@@ -1486,65 +1486,52 @@
                     {
                         columns: [
                             {
-                                width: '30%',
+                                // Penyetor
+                                width: '*',
                                 stack: [
-                                    {text: 'Penyetor,', alignment: 'center', margin: [0, 0, 0, 8]},
-                                    {text: '\n\n\n\n', alignment: 'center'},
+                                    {text: 'Penyetor,', alignment: 'center'},
+                                    {text: '\n\n\n\n\n', alignment: 'center'},
                                     {text: '(........................)', alignment: 'center'}
                                 ]
                             },
                             {
-                                width: '35%',
+                                // Stiker LUNAS di tengah
+                                width: 160,
                                 stack: [
                                     stempelLunas
-                                        ? {image: stempelLunas, width: 155, alignment: 'center', margin: [0, 18, 0, 0]}
-                                        : {text: '', margin: [0, 40, 0, 0]}
+                                        ? {
+                                            image: stempelLunas,
+                                            width: 150,
+                                            alignment: 'center',
+                                            margin: [0, 22, 0, 0]
+                                        }
+                                        : {text: ''}
                                 ]
                             },
                             {
-                                width: '35%',
+                                // Diterima Oleh — stempel menimpa TTD
+                                width: 190,
                                 stack: [
-                                    {text: 'Diterima Oleh,', alignment: 'center', margin: [0, 0, 0, 4]},
-                                    // Stempel menimpa TTD (overlap), seperti contoh fisik
+                                    {text: 'Diterima Oleh,', alignment: 'center', margin: [0, 0, 0, 2]},
                                     {
-                                        columns: [
-                                            {width: '*', text: ''},
-                                            {
-                                                width: 165,
-                                                stack: [
-                                                    {
-                                                        columns: [
-                                                            {
-                                                                width: 80,
-                                                                stack: [
-                                                                    stempelTtd
-                                                                        ? {
-                                                                            image: stempelTtd,
-                                                                            width: 78,
-                                                                            margin: [0, 10, 0, 0]
-                                                                        }
-                                                                        : {text: ''}
-                                                                ]
-                                                            },
-                                                            {
-                                                                width: 95,
-                                                                stack: [
-                                                                    tandaTangan
-                                                                        ? {
-                                                                            image: tandaTangan,
-                                                                            width: 105,
-                                                                            // geser kiri supaya menimpa stempel
-                                                                            margin: [-28, 22, 0, 0]
-                                                                        }
-                                                                        : {text: '\n\n'}
-                                                                ]
-                                                            }
-                                                        ],
-                                                        columnGap: 0
-                                                    }
-                                                ]
-                                            },
-                                            {width: '*', text: ''}
+                                        // TTD dulu (bawah), lalu stampel.png ditimpa di atasnya
+                                        stack: [
+                                            tandaTangan
+                                                ? {
+                                                    image: tandaTangan,
+                                                    width: 130,
+                                                    alignment: 'center',
+                                                    margin: [20, 22, 0, 0]
+                                                }
+                                                : {text: '\n\n\n\n', alignment: 'center'},
+                                            stempelTtd
+                                                ? {
+                                                    image: stempelTtd,
+                                                    width: 95,
+                                                    // naikkan ke atas TTD + sedikit ke kiri
+                                                    relativePosition: {x: 8, y: -72}
+                                                }
+                                                : {}
                                         ]
                                     },
                                     {
@@ -1552,13 +1539,13 @@
                                         alignment: 'center',
                                         bold: true,
                                         fontSize: 10,
-                                        margin: [0, 6, 0, 0]
+                                        margin: [0, 10, 0, 0]
                                     }
                                 ]
                             }
                         ],
-                        columnGap: 6,
-                        margin: [0, 10, 0, 0]
+                        columnGap: 4,
+                        margin: [0, 8, 0, 0]
                     }
                 ];
 
