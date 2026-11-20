@@ -47,6 +47,14 @@ class KuitansiAssets
         return self::dataUri((string) config('app.ttd_kuitansi', 'tanda-tangan.png'));
     }
 
+    /** Stempel resmi di atas TTD (Diterima Oleh). */
+    public static function stempel(): ?string
+    {
+        return self::dataUri((string) config('app.stempel_ttd', 'stampel.png'))
+            ?: self::dataUri('stempel.png')
+            ?: self::logo();
+    }
+
     public static function stempelLunas(): ?string
     {
         return self::dataUri((string) config('app.stempel_lunas', 'lunas.jpeg'));

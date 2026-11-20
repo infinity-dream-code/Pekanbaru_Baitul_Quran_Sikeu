@@ -19,6 +19,7 @@
         $biayaLayanan = (int) ($biayaLayanan ?? 0);
         $grandTotal = $total + $biayaLayanan;
         $stempelLunas = \App\Support\KuitansiAssets::stempelLunas();
+        $stempelTtd = \App\Support\KuitansiAssets::stempel();
         $tandaTangan = \App\Support\KuitansiAssets::tandaTangan();
         $petugas = auth()->user()->name ?? config('app.nama_instansi');
         $kelas = trim(($siswa->DESC02 ?? '') . ' ' . ($siswa->DESC03 ?? ''));
@@ -109,6 +110,9 @@
                 </td>
                 <td width="33%">
                     Diterima Oleh,<br>
+                    @if($stempelTtd)
+                        <img class="ttd" src="{{ $stempelTtd }}" alt="Stempel" style="max-width: 90px;"><br>
+                    @endif
                     @if($tandaTangan)
                         <img class="ttd" src="{{ $tandaTangan }}" alt="Tanda tangan"><br>
                     @else

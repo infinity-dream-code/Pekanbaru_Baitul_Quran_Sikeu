@@ -912,7 +912,7 @@
                 }
             })(instansi);
             const headerLogo = @json(\App\Support\KuitansiAssets::logoHeader() ?: ('data:image/jpeg;base64,' . base64_encode(file_get_contents(public_path(config('app.logo'))))));
-            const logoBqBiru = @json(\App\Support\KuitansiAssets::logo());
+            const stempelTtd = @json(\App\Support\KuitansiAssets::stempel());
             const tandaTangan = @json($tanda_tangan ?: \App\Support\KuitansiAssets::tandaTangan());
             const stempelLunasUrl = @json(\App\Support\KuitansiAssets::stempelLunasUrl());
             let stempelLunasDataUrl = null;
@@ -1505,10 +1505,10 @@
                                 width: '35%',
                                 stack: [
                                     {text: 'Diterima Oleh,', alignment: 'center', margin: [0, 0, 0, 4]},
-                                    logoBqBiru
+                                    stempelTtd
                                         ? {
-                                            image: logoBqBiru,
-                                            width: 72,
+                                            image: stempelTtd,
+                                            width: 90,
                                             alignment: 'center',
                                             margin: [0, 2, 0, 2]
                                         }
