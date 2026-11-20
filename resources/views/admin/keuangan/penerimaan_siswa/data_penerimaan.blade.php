@@ -943,7 +943,8 @@
 
             async function generatePdf(title, bodyContent, unit_logo = false) {
                 try {
-                    const isKuitansi = String(title || '').toUpperCase().includes('KUITANSI');
+                    // KWITANSI (W) maupun KUITANSI (U)
+                    const isKuitansi = /K[WU]ITANSI/i.test(String(title || ''));
                     let logo = headerLogo;
 
                     // Kuitansi pakai logo Baitul Qur'an; dokumen lain boleh logo unit.
@@ -961,11 +962,11 @@
                     const headerTable = {
                         alignment: 'center',
                         table: {
-                            widths: [isKuitansi ? 100 : 60, '*'],
+                            widths: [isKuitansi ? 110 : 60, '*'],
                             body: [[
                                 logo ? {
                                     image: logo,
-                                    width: isKuitansi ? 100 : 60,
+                                    width: isKuitansi ? 110 : 60,
                                     alignment: 'center'
                                 } : '',
                                 {
@@ -1456,29 +1457,43 @@
                                 width: '*',
                                 stack: [
                                     {text: 'Penyetor,', alignment: 'center'},
-                                    {text: '\n\n\n\n', alignment: 'center'},
+                                    {text: '\n\n\n\n\n', alignment: 'center'},
                                     {text: '(........................)', alignment: 'center'}
                                 ]
                             },
                             {
-                                width: 170,
+                                width: 160,
                                 stack: [
                                     stempelLunas
-                                        ? {image: stempelLunas, width: 160, alignment: 'center', margin: [0, 8, 0, 0]}
+                                        ? {image: stempelLunas, width: 150, alignment: 'center', margin: [0, 10, 0, 0]}
                                         : {text: '', margin: [0, 40, 0, 0]}
                                 ]
                             },
                             {
-                                width: '*',
+                                width: 200,
                                 stack: [
-                                    {text: 'Diterima Oleh,', alignment: 'center'},
-                                    tandaTangan
-                                        ? {image: tandaTangan, width: 95, height: 48, alignment: 'center', margin: [0, 4, 0, 2]}
-                                        : {text: '\n\n\n', alignment: 'center'},
-                                    {text: '(' + userName + ')', alignment: 'center'}
+                                    {text: 'Diterima Oleh,', alignment: 'center', margin: [0, 0, 0, 6]},
+                                    {
+                                        columns: [
+                                            headerLogo
+                                                ? {image: headerLogo, width: 72, alignment: 'center'}
+                                                : {text: '', width: 72},
+                                            tandaTangan
+                                                ? {
+                                                    image: tandaTangan,
+                                                    width: 120,
+                                                    height: 70,
+                                                    alignment: 'center',
+                                                    margin: [4, 0, 0, 0]
+                                                }
+                                                : {text: '\n\n\n', alignment: 'center'}
+                                        ],
+                                        columnGap: 4
+                                    }
                                 ]
                             }
                         ],
+                        columnGap: 8,
                         margin: [0, 6, 0, 0]
                     }
                 ];
