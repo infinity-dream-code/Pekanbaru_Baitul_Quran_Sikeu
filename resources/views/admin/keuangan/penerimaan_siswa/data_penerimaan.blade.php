@@ -1000,10 +1000,10 @@
                     canvas.height = 180;
                     const ctx = canvas.getContext('2d');
 
-                    // Stampel (bawah) — sedikit ke kiri
-                    ctx.drawImage(stampClean, 30, 25, 190, 125);
-                    // TTD (atas) — geser ke kiri biar benar-benar menimpa stampel
-                    ctx.drawImage(ttdClean, 95, 20, 280, 145);
+                    // Stampel (bawah) — digeser kanan supaya lebih ketemu TTD
+                    ctx.drawImage(stampClean, 70, 28, 200, 130);
+                    // TTD (atas) — overlap kuat di atas stampel (hampir di tengah stampel)
+                    ctx.drawImage(ttdClean, 85, 12, 290, 155);
 
                     return canvas.toDataURL('image/png');
                 } catch (e) {
