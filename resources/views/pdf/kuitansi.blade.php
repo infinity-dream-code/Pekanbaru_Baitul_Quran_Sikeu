@@ -6,10 +6,22 @@
         .info-table td { padding: 3px 4px; vertical-align: top; }
         .ttd-block { margin-top: 24px; width: 100%; }
         .ttd-block td { text-align: center; vertical-align: top; }
-        .ttd-block img.ttd { max-width: 120px; max-height: 60px; position: relative; z-index: 2; margin-left: -24px; }
-        .ttd-block img.stempel-ttd { max-width: 85px; position: relative; z-index: 1; vertical-align: middle; }
-        .ttd-block img.stempel { max-width: 170px; margin-top: 8px; }
-        .ttd-overlay { white-space: nowrap; }
+        .ttd-block img.ttd {
+            max-width: 125px;
+            max-height: 65px;
+            position: relative;
+            z-index: 2;
+            margin-left: -36px;
+            vertical-align: middle;
+        }
+        .ttd-block img.stempel-ttd {
+            max-width: 100px;
+            position: relative;
+            z-index: 1;
+            vertical-align: middle;
+        }
+        .ttd-block img.stempel { max-width: 155px; margin-top: 18px; }
+        .ttd-overlay { white-space: nowrap; line-height: 1; }
         .terbilang { margin-top: 8px; font-size: 10pt; }
     </style>
 @endsection
