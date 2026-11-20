@@ -28,10 +28,18 @@ class KuitansiAssets
         return 'data:' . $mime . ';base64,' . base64_encode((string) file_get_contents($path));
     }
 
+    /** Logo BQ biru (dipakai di samping TTD). */
     public static function logo(): ?string
     {
         return self::dataUri((string) config('app.logo_kuitansi', 'baitul-quran.png'))
             ?: self::dataUri((string) config('app.logo', 'logo_baitul_quran.jpeg'));
+    }
+
+    /** Logo resmi sidebar (dipakai di header kuitansi). */
+    public static function logoHeader(): ?string
+    {
+        return self::dataUri((string) config('app.logo', 'logo_baitul_quran.jpeg'))
+            ?: self::logo();
     }
 
     public static function tandaTangan(): ?string

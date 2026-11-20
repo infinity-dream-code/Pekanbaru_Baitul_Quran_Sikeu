@@ -911,7 +911,8 @@
                     });
                 }
             })(instansi);
-            const headerLogo = @json(\App\Support\KuitansiAssets::logo() ?: ('data:image/jpeg;base64,' . base64_encode(file_get_contents(public_path(config('app.logo'))))));
+            const headerLogo = @json(\App\Support\KuitansiAssets::logoHeader() ?: ('data:image/jpeg;base64,' . base64_encode(file_get_contents(public_path(config('app.logo'))))));
+            const logoBqBiru = @json(\App\Support\KuitansiAssets::logo());
             const tandaTangan = @json($tanda_tangan ?: \App\Support\KuitansiAssets::tandaTangan());
             const stempelLunasUrl = @json(\App\Support\KuitansiAssets::stempelLunasUrl());
             let stempelLunasDataUrl = null;
@@ -959,14 +960,30 @@
                     });
                     const availableWidth = getContentWidth('A4', orientation, pageMargins);
 
-                    const headerTable = {
+                    // Header kuitansi: logo resmi sidebar (logo_baitul_quran.jpeg)
+                    const headerTable = isKuitansi ? {
+                        alignment: 'center',
+                        stack: [
+                            logo ? {
+                                image: logo,
+                                width: 280,
+                                alignment: 'center',
+                                margin: [0, 0, 0, 4]
+                            } : {},
+                            instansi.alamat ? {
+                                text: instansi.alamat,
+                                style: 'headerSmall',
+                                alignment: 'center'
+                            } : {}
+                        ]
+                    } : {
                         alignment: 'center',
                         table: {
-                            widths: [isKuitansi ? 110 : 60, '*'],
+                            widths: [60, '*'],
                             body: [[
                                 logo ? {
                                     image: logo,
-                                    width: isKuitansi ? 110 : 60,
+                                    width: 60,
                                     alignment: 'center'
                                 } : '',
                                 {
@@ -980,15 +997,15 @@
                                             style: 'headerSmall'
                                         } : '',
                                         {
-                                            text: (isKuitansi ? "BAITUL QUR'AN RIAU" : instansi.nama_instansi).toUpperCase(),
+                                            text: String(instansi.nama_instansi || '').toUpperCase(),
                                             style: 'headerBig'
                                         },
                                         instansi.akreditasi ? {text: instansi.akreditasi, style: 'headerSmall'} : '',
                                         instansi.alamat ? {text: instansi.alamat, style: 'headerSmall'} : '',
-                                        !isKuitansi ? {
+                                        {
                                             text: `Telp: ${instansi.kontak.telepon || '-'} | Email: ${instansi.kontak.email || '-'} | Web: ${instansi.kontak.website || '-'}`,
                                             style: 'headerSmall'
-                                        } : ''
+                                        }
                                     ].filter(Boolean),
                                     alignment: 'center'
                                 }
@@ -1454,47 +1471,63 @@
                     {
                         columns: [
                             {
-                                width: '*',
+                                width: '30%',
                                 stack: [
-                                    {text: 'Penyetor,', alignment: 'center'},
-                                    {text: '\n\n\n\n\n', alignment: 'center'},
+                                    {text: 'Penyetor,', alignment: 'center', margin: [0, 0, 0, 8]},
+                                    {text: '\n\n\n\n', alignment: 'center'},
                                     {text: '(........................)', alignment: 'center'}
                                 ]
                             },
                             {
-                                width: 160,
+                                width: '35%',
                                 stack: [
                                     stempelLunas
-                                        ? {image: stempelLunas, width: 150, alignment: 'center', margin: [0, 10, 0, 0]}
+                                        ? {image: stempelLunas, width: 155, alignment: 'center', margin: [0, 18, 0, 0]}
                                         : {text: '', margin: [0, 40, 0, 0]}
                                 ]
                             },
                             {
-                                width: 200,
+                                width: '35%',
                                 stack: [
-                                    {text: 'Diterima Oleh,', alignment: 'center', margin: [0, 0, 0, 6]},
+                                    {text: 'Diterima Oleh,', alignment: 'center', margin: [0, 0, 0, 8]},
                                     {
                                         columns: [
-                                            headerLogo
-                                                ? {image: headerLogo, width: 72, alignment: 'center'}
-                                                : {text: '', width: 72},
-                                            tandaTangan
-                                                ? {
-                                                    image: tandaTangan,
-                                                    width: 120,
-                                                    height: 70,
-                                                    alignment: 'center',
-                                                    margin: [4, 0, 0, 0]
-                                                }
-                                                : {text: '\n\n\n', alignment: 'center'}
+                                            {
+                                                width: 78,
+                                                stack: [
+                                                    logoBqBiru
+                                                        ? {image: logoBqBiru, width: 74, alignment: 'center'}
+                                                        : {text: ''}
+                                                ]
+                                            },
+                                            {
+                                                width: '*',
+                                                stack: [
+                                                    tandaTangan
+                                                        ? {
+                                                            image: tandaTangan,
+                                                            width: 130,
+                                                            alignment: 'center',
+                                                            margin: [0, 2, 0, 4]
+                                                        }
+                                                        : {text: '\n\n\n', alignment: 'center'},
+                                                    {
+                                                        text: '(' + userName + ')',
+                                                        alignment: 'center',
+                                                        bold: true,
+                                                        fontSize: 10,
+                                                        margin: [0, 2, 0, 0]
+                                                    }
+                                                ]
+                                            }
                                         ],
-                                        columnGap: 4
+                                        columnGap: 6
                                     }
                                 ]
                             }
                         ],
-                        columnGap: 8,
-                        margin: [0, 6, 0, 0]
+                        columnGap: 6,
+                        margin: [0, 10, 0, 0]
                     }
                 ];
 

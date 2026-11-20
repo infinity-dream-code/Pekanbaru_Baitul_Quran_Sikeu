@@ -66,6 +66,6 @@ class User extends Authenticatable
 
     public static function getLogoSekolahBase64(): ?string
     {
-        return \App\Support\KuitansiAssets::logo();
+        return \App\Support\KuitansiAssets::logoHeader();
     }
 }

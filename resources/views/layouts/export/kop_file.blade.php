@@ -110,7 +110,7 @@
     <tr class="">
         <td style="text-align: center; vertical-align: middle;">
             @php
-                $logoDataUri = \App\Support\KuitansiAssets::logo();
+                $logoDataUri = \App\Support\KuitansiAssets::logoHeader();
                 if (!$logoDataUri) {
                     $logoPath = public_path(config('app.logo'));
                     $logoExt = strtolower(pathinfo($logoPath, PATHINFO_EXTENSION));
