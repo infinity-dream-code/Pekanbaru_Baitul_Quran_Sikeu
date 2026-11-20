@@ -1505,27 +1505,54 @@
                                 width: '35%',
                                 stack: [
                                     {text: 'Diterima Oleh,', alignment: 'center', margin: [0, 0, 0, 4]},
-                                    stempelTtd
-                                        ? {
-                                            image: stempelTtd,
-                                            width: 90,
-                                            alignment: 'center',
-                                            margin: [0, 2, 0, 2]
-                                        }
-                                        : {text: ''},
-                                    tandaTangan
-                                        ? {
-                                            image: tandaTangan,
-                                            width: 120,
-                                            alignment: 'center',
-                                            margin: [0, 0, 0, 4]
-                                        }
-                                        : {text: '\n\n\n', alignment: 'center'},
+                                    // Stempel menimpa TTD (overlap), seperti contoh fisik
+                                    {
+                                        columns: [
+                                            {width: '*', text: ''},
+                                            {
+                                                width: 165,
+                                                stack: [
+                                                    {
+                                                        columns: [
+                                                            {
+                                                                width: 80,
+                                                                stack: [
+                                                                    stempelTtd
+                                                                        ? {
+                                                                            image: stempelTtd,
+                                                                            width: 78,
+                                                                            margin: [0, 10, 0, 0]
+                                                                        }
+                                                                        : {text: ''}
+                                                                ]
+                                                            },
+                                                            {
+                                                                width: 95,
+                                                                stack: [
+                                                                    tandaTangan
+                                                                        ? {
+                                                                            image: tandaTangan,
+                                                                            width: 105,
+                                                                            // geser kiri supaya menimpa stempel
+                                                                            margin: [-28, 22, 0, 0]
+                                                                        }
+                                                                        : {text: '\n\n'}
+                                                                ]
+                                                            }
+                                                        ],
+                                                        columnGap: 0
+                                                    }
+                                                ]
+                                            },
+                                            {width: '*', text: ''}
+                                        ]
+                                    },
                                     {
                                         text: '(' + userName + ')',
                                         alignment: 'center',
                                         bold: true,
-                                        fontSize: 10
+                                        fontSize: 10,
+                                        margin: [0, 6, 0, 0]
                                     }
                                 ]
                             }

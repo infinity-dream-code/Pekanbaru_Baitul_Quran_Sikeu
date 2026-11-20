@@ -6,8 +6,10 @@
         .info-table td { padding: 3px 4px; vertical-align: top; }
         .ttd-block { margin-top: 24px; width: 100%; }
         .ttd-block td { text-align: center; vertical-align: top; }
-        .ttd-block img.ttd { max-width: 120px; max-height: 60px; }
+        .ttd-block img.ttd { max-width: 120px; max-height: 60px; position: relative; z-index: 2; margin-left: -24px; }
+        .ttd-block img.stempel-ttd { max-width: 85px; position: relative; z-index: 1; vertical-align: middle; }
         .ttd-block img.stempel { max-width: 170px; margin-top: 8px; }
+        .ttd-overlay { white-space: nowrap; }
         .terbilang { margin-top: 8px; font-size: 10pt; }
     </style>
 @endsection
@@ -110,14 +112,16 @@
                 </td>
                 <td width="33%">
                     Diterima Oleh,<br>
-                    @if($stempelTtd)
-                        <img class="ttd" src="{{ $stempelTtd }}" alt="Stempel" style="max-width: 90px;"><br>
-                    @endif
-                    @if($tandaTangan)
-                        <img class="ttd" src="{{ $tandaTangan }}" alt="Tanda tangan"><br>
-                    @else
-                        <br><br><br>
-                    @endif
+                    <div class="ttd-overlay">
+                        @if($stempelTtd)
+                            <img class="stempel-ttd" src="{{ $stempelTtd }}" alt="Stempel">
+                        @endif
+                        @if($tandaTangan)
+                            <img class="ttd" src="{{ $tandaTangan }}" alt="Tanda tangan">
+                        @else
+                            <br><br><br>
+                        @endif
+                    </div>
                     ({{ $petugas }})
                 </td>
             </tr>
