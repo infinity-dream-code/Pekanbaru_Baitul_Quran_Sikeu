@@ -177,6 +177,13 @@ class RekapPenerimaanController extends Controller
             return [['_android_bill', '=', '1']];
         }
 
+        if (strcasecmp($val, MetodeBayarHelper::VA_FILTER) === 0) {
+            return [
+                ['_va_bank', '=', '1'],
+                ['_exclude_mobile_bill', '=', '1'],
+            ];
+        }
+
         if ($val === '1140003') {
             return [
                 ['scctbill.FIDBANK', '=', '1140003'],
@@ -203,6 +210,15 @@ class RekapPenerimaanController extends Controller
                 $q->where('sccttran.FIDBANK', '1140000')
                     ->orWhere('scctbill.FIDBANK', '1140000')
                     ->orWhereRaw("UPPER(TRIM(COALESCE(sccttran.METODE, ''))) = 'CASH'");
+            });
+
+            return true;
+        }
+
+        if ($flag === '_va_bank') {
+            $query->where(function ($q) {
+                $q->whereIn('sccttran.FIDBANK', MetodeBayarHelper::VA_FIDBANKS)
+                    ->orWhereIn('scctbill.FIDBANK', MetodeBayarHelper::VA_FIDBANKS);
             });
 
             return true;
@@ -340,6 +356,7 @@ class RekapPenerimaanController extends Controller
             '1140002' => 'Manual SALDO',
             '1140001' => 'Manual BMI',
             '1140003' => 'Transfer Bank Lain',
+            'VA' => 'Online VA',
             '6' => 'ANDROID',
         ];
 
@@ -820,6 +837,7 @@ class RekapPenerimaanController extends Controller
                 || ($item[0] ?? null) === '_android_bill'
                 || ($item[0] ?? null) === '_exclude_mobile_bill'
                 || ($item[0] ?? null) === '_cash_tran'
+                || ($item[0] ?? null) === '_va_bank'
                 || ($item[0] ?? null) === '_fidbank_either'
                 || str_contains((string) ($item[0] ?? ''), 'scctbill')
                 || str_contains((string) ($item[0] ?? ''), 'sccttran')) {

@@ -86,9 +86,10 @@ class DataPenerimaanController extends Controller
             '1140002' => 'Manual SALDO',
             '1140001' => 'Manual BMI',
             '1140003' => 'Transfer Bank Lain',
+            'VA' => 'Online VA',
             '6' => 'ANDROID',
         ];
-        $data['bank'] = array_intersect_key($allowedBanks, $scctbillModel->metodeBayar)
+        $data['bank'] = array_intersect_key($allowedBanks, $scctbillModel->metodeBayar + ['VA' => 'Online VA'])
             ?: $allowedBanks;
 
         return view('admin.keuangan.penerimaan_siswa.data_penerimaan', $data);
@@ -288,6 +289,10 @@ class DataPenerimaanController extends Controller
                     case 'sccttran.FIDBANK':
                         if ((string) $val === MetodeBayarHelper::ANDROID_FIDBANK) {
                             $androidBankFilter = 'only';
+                        } elseif (strcasecmp((string) $val, MetodeBayarHelper::VA_FILTER) === 0) {
+                            // VA: channel H2H VA BMI (FIDBANK 1–5)
+                            $filters[] = ['_va_bank', '=', '1'];
+                            $androidBankFilter = 'exclude';
                         } elseif ((string) $val === '1140003') {
                             // Transfer Bank Lain: ambil dari scctbill.FIDBANK
                             $filters[] = ['scctbill.FIDBANK', '=', '1140003'];
@@ -316,6 +321,10 @@ class DataPenerimaanController extends Controller
                                         ->orWhereRaw('TRIM(CAST(scctcust.DESC01 AS CHAR)) = ?', [$value]);
                                 });
                             }
+                            continue;
+                        }
+                        if (($filter[0] ?? null) === '_va_bank') {
+                            $query->whereIn('scctbill.FIDBANK', MetodeBayarHelper::VA_FIDBANKS);
                             continue;
                         }
                         if (count($filter) === 3) {
@@ -1158,6 +1167,11 @@ class DataPenerimaanController extends Controller
                         });
                         return;
                     }
+                    if (strcasecmp($bank, MetodeBayarHelper::VA_FILTER) === 0) {
+                        $q->whereIn('b.FIDBANK', MetodeBayarHelper::VA_FIDBANKS)
+                            ->whereRaw('UPPER(TRIM(COALESCE(b.NOREFF, ""))) <> ?', ['MOBILE']);
+                        return;
+                    }
                     $q->where('b.FIDBANK', $bank)
                         ->whereRaw('UPPER(TRIM(COALESCE(b.NOREFF, ""))) <> ?', ['MOBILE']);
                 })
@@ -1296,6 +1310,11 @@ class DataPenerimaanController extends Controller
                         $sub->where('scctbill.FIDBANK', MetodeBayarHelper::ANDROID_FIDBANK)
                             ->orWhereRaw('UPPER(TRIM(COALESCE(scctbill.NOREFF, ""))) = ?', ['MOBILE']);
                     });
+                    return;
+                }
+                if (strcasecmp($bank, MetodeBayarHelper::VA_FILTER) === 0) {
+                    $q->whereIn('scctbill.FIDBANK', MetodeBayarHelper::VA_FIDBANKS)
+                        ->whereRaw('UPPER(TRIM(COALESCE(scctbill.NOREFF, ""))) <> ?', ['MOBILE']);
                     return;
                 }
                 $q->where('scctbill.FIDBANK', $bank)

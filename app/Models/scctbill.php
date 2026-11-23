@@ -59,6 +59,7 @@ class scctbill extends Model
         "4" => "H2H VA BMI - EDC",
         "5" => "H2H VA BMI - MOBILE",
         "6" => "ANDROID",
+        "VA" => "Online VA",
         null => "Nomor VA",
         "" => "Nomor VA",
     ];

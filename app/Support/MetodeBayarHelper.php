@@ -9,6 +9,10 @@ class MetodeBayarHelper
 {
     public const ANDROID_FIDBANK = '6';
     public const SALDO_FIDBANK = '1140002';
+    public const VA_FILTER = 'VA';
+
+    /** Kode FIDBANK channel H2H VA BMI. */
+    public const VA_FIDBANKS = ['1', '2', '3', '4', '5'];
 
     public static function isMobileNoreff(?string $noreff): bool
     {
@@ -68,6 +72,26 @@ class MetodeBayarHelper
     }
 
     /**
+     * Filter Bank = VA: FIDBANK H2H VA (1–5), bukan ANDROID/Mobile.
+     *
+     * @param  Builder|QueryBuilder  $query
+     * @return Builder|QueryBuilder
+     */
+    public static function applyVaBankFilter($query, string $tranAlias = 'sccttran', string $billAlias = 'scctbill')
+    {
+        $query->where(function ($q) use ($tranAlias, $billAlias) {
+            $q->whereIn("{$billAlias}.FIDBANK", self::VA_FIDBANKS);
+
+            // Data Pembayaran: VA bisa tercatat di jurnal transaksi
+            if ($tranAlias !== '' && $tranAlias !== $billAlias) {
+                $q->orWhereIn("{$tranAlias}.FIDBANK", self::VA_FIDBANKS);
+            }
+        });
+
+        return self::excludeMobileNoreff($query, $tranAlias, $billAlias);
+    }
+
+    /**
      * Filter berdasarkan pilihan bank dropdown.
      *
      * @param  Builder|QueryBuilder  $query
@@ -82,6 +106,10 @@ class MetodeBayarHelper
 
         if ($bank === self::ANDROID_FIDBANK) {
             return self::applyAndroidBankFilter($query, $tranAlias, $billAlias);
+        }
+
+        if (strcasecmp($bank, self::VA_FILTER) === 0) {
+            return self::applyVaBankFilter($query, $tranAlias, $billAlias);
         }
 
         $query->where($fidColumn, $bank);
